@@ -13,11 +13,31 @@ Spring Boot REST API for the TaskFlow application.
 
 ## Setup
 
-Copy `.env.example` to `.env` and fill in values (added in T2.2):
-
 ```bash
-cp .env.example .env
+cp .env.example .env   # then edit .env — set real values for any uncommented variables
 ```
+
+### Configuration
+
+The application reads secrets from environment variables. `application.properties` holds only safe defaults; it never contains passwords or signing keys.
+
+| Variable | Required when | Default | Notes |
+|----------|--------------|---------|-------|
+| `LOG_LEVEL` | Optional | `INFO` | Set to `DEBUG` locally for verbose output |
+| `SPRING_DATASOURCE_URL` | T3.x (persistence) | — | `jdbc:postgresql://localhost:5432/taskflow` locally |
+| `SPRING_DATASOURCE_USERNAME` | T3.x (persistence) | — | Match the Docker Compose user |
+| `SPRING_DATASOURCE_PASSWORD` | T3.x (persistence) | — | Never commit |
+| `JWT_SECRET` | Auth phase | — | Minimum 32 random characters |
+
+### Logging
+
+- Package `com.example.backend` logs at the level set by `LOG_LEVEL` (default `INFO`).
+- Spring framework logs are suppressed to `WARN` to reduce noise.
+- Set `LOG_LEVEL=DEBUG` in `.env` when debugging locally.
+
+### Health check
+
+Spring Boot Actuator will be added in a future task. Until then, the application starts on `http://localhost:8080` and readiness can be confirmed by the absence of a startup error.
 
 ## Commands
 
