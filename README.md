@@ -126,14 +126,61 @@ Rules:
 - Node.js 18+ and npm
 - Docker and Docker Compose (for PostgreSQL, Redis, Kafka)
 
-### Start local services
+### Docker services
+
+`docker-compose.yml` starts three local development services:
+
+| Service | Image | Host port | Container-network address |
+|---------|-------|-----------|--------------------------|
+| PostgreSQL | `postgres:17.2` | `localhost:5432` | `postgres:5432` |
+| Redis | `redis:7.4.1` | `localhost:6379` | `redis:6379` |
+| Kafka | `apache/kafka:4.2.2` | `localhost:9092` (host clients) | `kafka:29092` (Docker clients) |
+
+**Kafka listeners:**
+- Host applications (Spring Boot running locally) connect to `localhost:9092`.
+- Containers running inside the same Compose network use `kafka:29092`.
+
+**Environment variables:** Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`.
 
 ```bash
-# Start PostgreSQL, Redis, and Kafka
-docker compose up -d
+cp .env.example .env   # then edit .env — set POSTGRES_PASSWORD
+```
 
-# Verify services are running
-docker compose ps
+#### Start and verify
+
+```bash
+docker compose up -d      # start all services in the background
+docker compose ps         # show running status and health
+```
+
+#### View logs
+
+```bash
+docker compose logs -f postgres   # follow PostgreSQL logs
+docker compose logs -f redis      # follow Redis logs
+docker compose logs -f kafka      # follow Kafka logs
+docker compose logs -f            # follow all services
+```
+
+#### Stop services (data is preserved)
+
+```bash
+docker compose stop       # stop containers; volumes kept
+docker compose start      # restart stopped containers
+```
+
+#### Shut down and remove containers (data is preserved)
+
+```bash
+docker compose down       # stop and remove containers; named volumes kept
+```
+
+#### ⚠️ Destructive reset — deletes all local data
+
+```bash
+# WARNING: this permanently deletes all PostgreSQL, Redis, and Kafka data.
+# Only run this when you want a completely clean slate.
+docker compose down -v
 ```
 
 ### Frontend
@@ -159,6 +206,11 @@ mvnw.cmd spring-boot:run
 
 | Component | Command | Purpose |
 |-----------|---------|---------|
+| Docker | `docker compose up -d` | Start all local services |
+| Docker | `docker compose ps` | Show service health |
+| Docker | `docker compose logs -f` | Stream all service logs |
+| Docker | `docker compose stop` | Stop containers (keep data) |
+| Docker | `docker compose down` | Remove containers (keep data) |
 | Frontend | `npm run dev` | Development server |
 | Frontend | `npm run build` | Production build |
 | Frontend | `npm run lint` | ESLint |
