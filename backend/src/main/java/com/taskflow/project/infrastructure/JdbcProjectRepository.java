@@ -40,7 +40,7 @@ public class JdbcProjectRepository {
         String sql = """
                 SELECT id, owner_id, name, description, created_at, updated_at
                 FROM projects
-                ORDER BY created_at DESC
+                ORDER BY created_at DESC, id DESC
                 LIMIT ? OFFSET ?
                 """;
         return jdbc.query(sql, rowMapper(), limit, offset);
@@ -52,7 +52,7 @@ public class JdbcProjectRepository {
                 FROM projects p
                 JOIN project_members pm ON pm.project_id = p.id
                 WHERE pm.user_id = ?
-                ORDER BY p.created_at DESC
+                ORDER BY p.created_at DESC, p.id DESC
                 LIMIT ? OFFSET ?
                 """;
         return jdbc.query(sql, rowMapper(), userId, limit, offset);

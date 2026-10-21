@@ -127,6 +127,42 @@ class TaskControllerTest {
                                 .andExpect(status().isBadRequest());
         }
 
+        @Test
+        void list_returns_400_when_size_exceeds_max() throws Exception {
+                mvc.perform(get("/api/v1/projects/1/tasks?size=101"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+
+        @Test
+        void list_returns_400_when_size_is_zero() throws Exception {
+                mvc.perform(get("/api/v1/projects/1/tasks?size=0"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        }
+
+        @Test
+        void list_returns_400_for_invalid_status_filter() throws Exception {
+                when(service.listTasks(eq(1L), eq("NONSENSE"), isNull(), isNull(), eq(0), eq(20), eq(1L)))
+                                .thenThrow(new IllegalArgumentException(
+                                                "Invalid status filter 'NONSENSE'. Valid values: todo, in_progress, in_review, done"));
+
+                mvc.perform(get("/api/v1/projects/1/tasks?status=NONSENSE"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+
+        @Test
+        void list_returns_400_for_invalid_priority_filter() throws Exception {
+                when(service.listTasks(eq(1L), isNull(), eq("NONSENSE"), isNull(), eq(0), eq(20), eq(1L)))
+                                .thenThrow(new IllegalArgumentException(
+                                                "Invalid priority filter 'NONSENSE'. Valid values: low, medium, high, urgent"));
+
+                mvc.perform(get("/api/v1/projects/1/tasks?priority=NONSENSE"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+
         // --- GET /api/v1/tasks/{taskId} ---
 
         @Test

@@ -60,7 +60,7 @@ public class JdbcTaskRepository {
         List<Object> params = new ArrayList<>();
         params.add(projectId);
         appendFilters(sql, params, statusFilter, priorityFilter, assigneeIdFilter);
-        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
+        sql.append(" ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?");
         params.add(limit);
         params.add(offset);
         return jdbc.query(sql.toString(), rowMapper(), params.toArray());

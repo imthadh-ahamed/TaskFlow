@@ -89,6 +89,20 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
+    @Test
+    void list_returns_400_when_size_is_zero() throws Exception {
+        mockMvc.perform(get("/api/v1/projects").param("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void list_returns_400_when_page_is_negative() throws Exception {
+        mockMvc.perform(get("/api/v1/projects").param("page", "-1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     // --- GET /api/v1/projects/{id} ---
 
     @Test

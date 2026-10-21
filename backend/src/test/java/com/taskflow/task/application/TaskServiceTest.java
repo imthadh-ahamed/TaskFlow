@@ -111,6 +111,16 @@ class TaskServiceTest {
                 .withMessageContaining("Invalid status filter");
     }
 
+    @Test
+    void listTasks_throws_for_invalid_priority_filter() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.listTasks(1L, null, "invalid", null, 0, 20, 1L))
+                .withMessageContaining("Invalid priority filter");
+    }
+
     // --- getTask ---
 
     @Test
