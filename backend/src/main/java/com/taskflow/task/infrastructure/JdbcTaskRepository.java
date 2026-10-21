@@ -114,6 +114,53 @@ public class JdbcTaskRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * Fetches a page of tasks for a project, LEFT JOINed with {@code users} so the
+     * assignee's {@code display_name} is returned in the same query.
+     *
+     * <p><b>N+1 avoided:</b> a naive implementation would call
+     * {@code findByProjectId()} for N tasks and then issue N individual
+     * {@code SELECT display_name FROM users WHERE id = ?} queries — one per
+     * assigned task.  This method collapses those N+1 round-trips into a
+     * single SQL statement regardless of how many tasks have assignees.
+     */
+    public List<TaskWithAssignee> findByProjectIdWithAssignee(long projectId,
+                                                               TaskStatus statusFilter,
+                                                               TaskPriority priorityFilter,
+                                                               Long assigneeIdFilter,
+                                                               int limit, int offset) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT t.id, t.project_id, t.assignee_id,
+                       t.title, t.description, t.status, t.priority,
+                       t.due_date, t.created_at, t.updated_at,
+                       u.display_name AS assignee_name
+                FROM tasks t
+                LEFT JOIN users u ON u.id = t.assignee_id
+                WHERE t.project_id = ?
+                """);
+        List<Object> params = new ArrayList<>();
+        params.add(projectId);
+        appendFilters(sql, params, statusFilter, priorityFilter, assigneeIdFilter);
+        sql.append(" ORDER BY t.created_at DESC, t.id DESC LIMIT ? OFFSET ?");
+        params.add(limit);
+        params.add(offset);
+        return jdbc.query(sql.toString(), enrichedRowMapper(), params.toArray());
+    }
+
+    /** Single-task variant of {@link #findByProjectIdWithAssignee}: avoids a follow-up user lookup. */
+    public Optional<TaskWithAssignee> findByIdWithAssignee(long id) {
+        String sql = """
+                SELECT t.id, t.project_id, t.assignee_id,
+                       t.title, t.description, t.status, t.priority,
+                       t.due_date, t.created_at, t.updated_at,
+                       u.display_name AS assignee_name
+                FROM tasks t
+                LEFT JOIN users u ON u.id = t.assignee_id
+                WHERE t.id = ?
+                """;
+        return jdbc.query(sql, enrichedRowMapper(), id).stream().findFirst();
+    }
+
     private void appendFilters(StringBuilder sql, List<Object> params,
                                 TaskStatus statusFilter, TaskPriority priorityFilter,
                                 Long assigneeIdFilter) {
@@ -147,5 +194,10 @@ public class JdbcTaskRepository {
                     rs.getObject("updated_at", OffsetDateTime.class).toInstant()
             );
         };
+    }
+
+    private RowMapper<TaskWithAssignee> enrichedRowMapper() {
+        return (rs, rowNum) -> new TaskWithAssignee(rowMapper().mapRow(rs, rowNum),
+                rs.getString("assignee_name"));
     }
 }

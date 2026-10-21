@@ -33,7 +33,7 @@ class TaskControllerTest {
         JwtService jwtService;
 
         private TaskResponse sampleResponse(long id, String status) {
-                return new TaskResponse(id, 1L, null, "Fix bug", null,
+                return new TaskResponse(id, 1L, null, null, "Fix bug", null,
                                 status, "medium", null,
                                 "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z");
         }

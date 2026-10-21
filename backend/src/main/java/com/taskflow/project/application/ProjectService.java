@@ -12,10 +12,12 @@ import com.taskflow.project.domain.Project;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import com.taskflow.common.api.PageResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class ProjectService {
 
     private final JdbcProjectRepository repository;
@@ -33,6 +35,7 @@ public class ProjectService {
         return toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<ProjectResponse> listProjects(int page, int size, long callerId) {
         long total = repository.countByMemberId(callerId);
         List<ProjectResponse> content = repository
@@ -43,6 +46,7 @@ public class ProjectService {
         return PageResponse.of(content, page, size, total);
     }
 
+    @Transactional(readOnly = true)
     public ProjectResponse getProject(long id, long callerId) {
         Project project = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project " + id + " not found"));

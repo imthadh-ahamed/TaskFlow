@@ -9,6 +9,8 @@ public record TaskResponse(
         Long id,
         Long projectId,
         Long assigneeId,
+        /** Display name of the assignee; null when the task has no assignee. Populated via JOIN on list/get. */
+        String assigneeName,
         String title,
         String description,
         String status,

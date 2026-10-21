@@ -12,6 +12,7 @@ import com.taskflow.task.domain.Task;
 import com.taskflow.task.domain.TaskPriority;
 import com.taskflow.task.domain.TaskStatus;
 import com.taskflow.task.infrastructure.JdbcTaskRepository;
+import com.taskflow.task.infrastructure.TaskWithAssignee;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -92,8 +93,8 @@ class TaskServiceTest {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
         when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
         when(taskRepository.countByProjectId(1L, null, null, null)).thenReturn(1L);
-        when(taskRepository.findByProjectId(eq(1L), isNull(), isNull(), isNull(), eq(20), eq(0)))
-                .thenReturn(List.of(sampleTask(1L, TaskStatus.TODO)));
+        when(taskRepository.findByProjectIdWithAssignee(eq(1L), isNull(), isNull(), isNull(), eq(20), eq(0)))
+                .thenReturn(List.of(new TaskWithAssignee(sampleTask(1L, TaskStatus.TODO), null)));
 
         PageResponse<TaskResponse> page = service.listTasks(1L, null, null, null, 0, 20, 1L);
 
@@ -125,17 +126,19 @@ class TaskServiceTest {
 
     @Test
     void getTask_returns_response_when_found() {
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask(1L, TaskStatus.TODO)));
+        when(taskRepository.findByIdWithAssignee(1L))
+                .thenReturn(Optional.of(new TaskWithAssignee(sampleTask(1L, TaskStatus.TODO), "Alice")));
         when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
 
         TaskResponse resp = service.getTask(1L, 1L);
 
         assertThat(resp.id()).isEqualTo(1L);
+        assertThat(resp.assigneeName()).isEqualTo("Alice");
     }
 
     @Test
     void getTask_throws_when_not_found() {
-        when(taskRepository.findById(99L)).thenReturn(Optional.empty());
+        when(taskRepository.findByIdWithAssignee(99L)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.getTask(99L, 1L));

@@ -12,13 +12,16 @@ import com.taskflow.task.domain.Task;
 import com.taskflow.task.domain.TaskPriority;
 import com.taskflow.task.domain.TaskStatus;
 import com.taskflow.task.infrastructure.JdbcTaskRepository;
+import com.taskflow.task.infrastructure.TaskWithAssignee;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Service
+@Transactional
 public class TaskService {
 
     private final JdbcTaskRepository taskRepository;
@@ -43,6 +46,7 @@ public class TaskService {
         return toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<TaskResponse> listTasks(long projectId,
                                                 String statusParam,
                                                 String priorityParam,
@@ -56,17 +60,18 @@ public class TaskService {
         long total = taskRepository.countByProjectId(
                 projectId, statusFilter, priorityFilter, assigneeId);
         List<TaskResponse> content = taskRepository
-                .findByProjectId(projectId, statusFilter, priorityFilter, assigneeId,
+                .findByProjectIdWithAssignee(projectId, statusFilter, priorityFilter, assigneeId,
                         size, page * size)
-                .stream().map(this::toResponse).toList();
+                .stream().map(ta -> toResponse(ta.task(), ta.assigneeName())).toList();
         return PageResponse.of(content, page, size, total);
     }
 
+    @Transactional(readOnly = true)
     public TaskResponse getTask(long taskId, long callerId) {
-        Task task = taskRepository.findById(taskId)
+        TaskWithAssignee ta = taskRepository.findByIdWithAssignee(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
-        requireMember(task.projectId(), callerId);
-        return toResponse(task);
+        requireMember(ta.task().projectId(), callerId);
+        return toResponse(ta.task(), ta.assigneeName());
     }
 
     public TaskResponse updateTask(long taskId, UpdateTaskRequest req, long callerId) {
@@ -170,9 +175,13 @@ public class TaskService {
         }
     }
 
-    private TaskResponse toResponse(Task t) {
+    private static TaskResponse toResponse(Task t) {
+        return toResponse(t, null);
+    }
+
+    private static TaskResponse toResponse(Task t, String assigneeName) {
         return new TaskResponse(
-                t.id(), t.projectId(), t.assigneeId(),
+                t.id(), t.projectId(), t.assigneeId(), assigneeName,
                 t.title(), t.description(),
                 t.status().name().toLowerCase(),
                 t.priority().name().toLowerCase(),
