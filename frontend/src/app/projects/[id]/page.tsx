@@ -49,6 +49,15 @@ export default async function ProjectDetailPage({
         </p>
       )}
 
+      <div className="mt-6">
+        <Link
+          href={`/projects/${projectId}/tasks`}
+          className="inline-flex items-center rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        >
+          View tasks →
+        </Link>
+      </div>
+
       <dl className="mt-6 space-y-2 text-sm">
         <div className="flex gap-2">
           <dt className="font-medium">Owner ID:</dt>
