@@ -92,7 +92,7 @@ V1__initial_schema.sql
 V2__create_indexes.sql
 ```
 
-**Execution:** The Spring Boot backend invokes Flyway automatically on startup. Flyway will be configured in `backend/src/main/resources/application.properties` to load migrations from `classpath:db/migration`. During the build, migration files from `database/migrations/` are copied to the backend's classpath resource directory. The exact build integration is defined in T3.2.
+**Execution:** The Spring Boot backend invokes Flyway automatically on startup. Flyway reads migrations from `classpath:db/migration`. During the build, the Maven Resources Plugin copies `database/migrations/*.sql` into the backend's classpath at `db/migration/` — no developer-specific filesystem path is required. See `database/docs/migration-execution.md` for the full plan.
 
 Migration rules:
 - Migration files are immutable once applied to a shared environment.

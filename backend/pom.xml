@@ -48,6 +48,38 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!--
+				Copy versioned SQL migration files from the database/ component into
+				the backend classpath at db/migration/ so Flyway can locate them at
+				runtime without requiring a developer-specific filesystem path.
+				Source: database/migrations/*.sql (relative to this module)
+				Destination: target/classes/db/migration/ (classpath:db/migration)
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-flyway-migrations</id>
+						<phase>process-resources</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.outputDirectory}/db/migration</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${project.basedir}/../database/migrations</directory>
+									<includes>
+										<include>*.sql</include>
+									</includes>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 
