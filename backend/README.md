@@ -62,6 +62,30 @@ Spring Boot Actuator will be added in a future task. Until then, the application
 | `./mvnw package` | Produce the executable JAR in `target/` |
 | `./mvnw clean` | Remove build output |
 
+## Package structure
+
+Base package: `com.taskflow`. Code is organised by business capability, not by technical layer.
+
+```
+com.taskflow/
+├── BackendApplication.java      # Spring Boot entry point
+├── auth/                        # Authentication and authorisation (added when auth phase begins)
+│   ├── api/                     # Controllers — HTTP mapping and request validation only
+│   ├── application/             # Use-case orchestration (services)
+│   ├── domain/                  # Business rules, entities, value objects
+│   └── infrastructure/          # Repositories, external integrations
+├── project/                     # Project management capability (same sub-layers as above)
+├── task/                        # Task management capability
+├── common/                      # Shared utilities, base classes, cross-cutting concerns
+└── config/                      # Spring configuration beans (@Configuration classes)
+```
+
+**Rules:**
+- Dependencies flow inward: `infrastructure` → `application` → `domain`. Controllers call application services; they never call repositories directly.
+- Keep HTTP concerns (status codes, request/response mapping) in `api/` classes only.
+- Use constructor injection throughout; never field injection.
+- Do not add a package unless it contains at least one non-empty class.
+
 ## API
 
 All endpoints are versioned under `/api/v1`. See the root [README](../README.md) for the shared API contract and error response shape.
