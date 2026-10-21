@@ -47,6 +47,23 @@
 			<artifactId>spring-boot-starter-jdbc</artifactId>
 		</dependency>
 
+		<!--
+			Spring Cache abstraction + Redis integration.
+			spring-boot-starter-cache enables @EnableCaching / @Cacheable.
+			spring-boot-starter-data-redis provides LettuceConnectionFactory and
+			RedisCacheManager. Redis is optional at runtime: CacheConfig falls back
+			to a no-op CacheManager when the Redis connection fails so the
+			application stays healthy if Redis is unavailable.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+
 		<!-- PostgreSQL JDBC driver — compile scope needed for PGobject in repository code -->
 		<dependency>
 			<groupId>org.postgresql</groupId>
@@ -124,6 +141,23 @@
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Actuator — health/readiness endpoints and metrics (T14.1) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<!-- Kafka producer/consumer for async notification event delivery (T13.4) -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

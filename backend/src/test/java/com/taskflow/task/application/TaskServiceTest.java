@@ -6,6 +6,7 @@ import com.taskflow.common.api.PageResponse;
 import com.taskflow.membership.domain.MemberRole;
 import com.taskflow.membership.domain.ProjectMember;
 import com.taskflow.membership.infrastructure.JdbcMemberRepository;
+import com.taskflow.notification.infrastructure.JdbcOutboxRepository;
 import com.taskflow.project.domain.Project;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import com.taskflow.task.api.*;
@@ -34,6 +35,7 @@ class TaskServiceTest {
     @Mock JdbcTaskRepository taskRepository;
     @Mock JdbcProjectRepository projectRepository;
     @Mock JdbcMemberRepository memberRepository;
+    @Mock JdbcOutboxRepository outboxRepository;
     @InjectMocks TaskService service;
 
     private Project sampleProject() {

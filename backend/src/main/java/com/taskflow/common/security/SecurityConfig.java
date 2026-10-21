@@ -47,6 +47,10 @@ class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(
                                 "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // Actuator: /health and /info are public; all others require ACTUATOR_ADMIN
+                        .requestMatchers("/actuator/health", "/actuator/health/**",
+                                         "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ACTUATOR_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(originFilter, UsernamePasswordAuthenticationFilter.class)

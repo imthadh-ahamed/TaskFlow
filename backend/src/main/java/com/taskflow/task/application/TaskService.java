@@ -6,6 +6,8 @@ import com.taskflow.common.api.PageResponse;
 import com.taskflow.membership.domain.MemberRole;
 import com.taskflow.membership.domain.ProjectMember;
 import com.taskflow.membership.infrastructure.JdbcMemberRepository;
+import com.taskflow.notification.domain.NotificationEvent;
+import com.taskflow.notification.infrastructure.JdbcOutboxRepository;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import com.taskflow.task.api.*;
 import com.taskflow.task.domain.Task;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -27,13 +30,16 @@ public class TaskService {
     private final JdbcTaskRepository taskRepository;
     private final JdbcProjectRepository projectRepository;
     private final JdbcMemberRepository memberRepository;
+    private final JdbcOutboxRepository outboxRepository;
 
     public TaskService(JdbcTaskRepository taskRepository,
                        JdbcProjectRepository projectRepository,
-                       JdbcMemberRepository memberRepository) {
+                       JdbcMemberRepository memberRepository,
+                       JdbcOutboxRepository outboxRepository) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
         this.memberRepository = memberRepository;
+        this.outboxRepository = outboxRepository;
     }
 
     public TaskResponse createTask(long projectId, CreateTaskRequest req, long callerId) {
@@ -43,6 +49,8 @@ public class TaskService {
         LocalDate dueDate = parseDate(req.dueDate());
         Task saved = taskRepository.save(projectId, req.title().strip(),
                 req.description(), priority, req.assigneeId(), dueDate);
+        outboxRepository.insert(
+                NotificationEvent.taskCreated(projectId, saved.id(), callerId, saved.assigneeId()));
         return toResponse(saved);
     }
 
@@ -113,6 +121,12 @@ public class TaskService {
         Task updated = taskRepository.update(taskId, newTitle, newDescription,
                 newPriority, newAssigneeId, clearAssignee, newDueDate, clearDueDate)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
+
+        if (!Objects.equals(existing.assigneeId(), updated.assigneeId())) {
+            outboxRepository.insert(NotificationEvent.taskAssigned(
+                    existing.projectId(), taskId, callerId,
+                    existing.assigneeId(), updated.assigneeId()));
+        }
         return toResponse(updated);
     }
 

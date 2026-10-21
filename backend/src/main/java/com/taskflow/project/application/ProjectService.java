@@ -2,6 +2,7 @@ package com.taskflow.project.application;
 
 import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
+import com.taskflow.config.CacheConfig;
 import com.taskflow.membership.domain.MemberRole;
 import com.taskflow.membership.domain.ProjectMember;
 import com.taskflow.membership.infrastructure.JdbcMemberRepository;
@@ -11,6 +12,8 @@ import com.taskflow.project.api.UpdateProjectRequest;
 import com.taskflow.project.domain.Project;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import com.taskflow.common.api.PageResponse;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,7 @@ public class ProjectService {
         this.memberRepository = memberRepository;
     }
 
+    @CacheEvict(cacheNames = CacheConfig.PROJECTS_BY_USER, allEntries = true)
     public ProjectResponse createProject(CreateProjectRequest req, long callerId) {
         // The create_project_with_owner procedure (V6) inserts into both
         // projects and project_members atomically; no separate add() call needed.
@@ -36,6 +40,8 @@ public class ProjectService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = CacheConfig.PROJECTS_BY_USER,
+               key = "#callerId + ':' + #page + ':' + #size")
     public PageResponse<ProjectResponse> listProjects(int page, int size, long callerId) {
         long total = repository.countByMemberId(callerId);
         List<ProjectResponse> content = repository
@@ -54,6 +60,7 @@ public class ProjectService {
         return toResponse(project);
     }
 
+    @CacheEvict(cacheNames = CacheConfig.PROJECTS_BY_USER, allEntries = true)
     public ProjectResponse updateProject(long id, UpdateProjectRequest req, long callerId) {
         Project existing = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project " + id + " not found"));
@@ -80,6 +87,7 @@ public class ProjectService {
         return toResponse(updated);
     }
 
+    @CacheEvict(cacheNames = CacheConfig.PROJECTS_BY_USER, allEntries = true)
     public void deleteProject(long id, long callerId) {
         if (!repository.findById(id).isPresent()) {
             throw new ResourceNotFoundException("Project " + id + " not found");
