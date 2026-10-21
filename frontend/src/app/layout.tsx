@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import NavBar from "@/components/layout/NavBar";
+import { StoreProvider } from "@/components/providers/StoreProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,17 +33,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to main content
         </a>
-        {/* Suspense lets usePathname() stream in without blocking static prerendering */}
+        {/* Suspense lets usePathname() stream in and defers StoreProvider's
+            configureStore call (which uses Math.random()) past static prerender */}
         <Suspense
           fallback={
             <div className="sticky top-0 z-10 h-14 border-b border-zinc-200 bg-background dark:border-zinc-800" />
           }
         >
-          <NavBar />
+          <StoreProvider>
+            <NavBar />
+            <main id="main-content" className="flex flex-1 flex-col">
+              {children}
+            </main>
+          </StoreProvider>
         </Suspense>
-        <main id="main-content" className="flex flex-1 flex-col">
-          {children}
-        </main>
       </body>
     </html>
   );

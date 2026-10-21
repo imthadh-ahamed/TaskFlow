@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createTask } from "@/lib/api/tasks";
-import { ApiError } from "@/lib/api/client";
+import { useCreateTaskMutation } from "@/store/api";
+import { getRtkErrorMessage, getRtkFieldErrors } from "@/lib/api/rtk-error";
 import type { TaskPriority } from "@/types/api";
 
 const PRIORITIES: { value: TaskPriority; label: string }[] = [
@@ -23,38 +23,32 @@ export function CreateTaskForm({ projectId, onCreated, onCancel }: Props) {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [generalError, setGeneralError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+
+  const [createTask, { isLoading, error, reset }] = useCreateTaskMutation();
+
+  const fieldErrors = Object.fromEntries(
+    getRtkFieldErrors(error).map((d) => [d.field, d.message]),
+  );
+  const generalError =
+    getRtkFieldErrors(error).length === 0 ? getRtkErrorMessage(error) : null;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setFieldErrors({});
-    setGeneralError(null);
-    setPending(true);
+    reset();
 
     try {
-      await createTask(projectId, {
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-        dueDate: dueDate || null,
-      });
+      await createTask({
+        projectId,
+        body: {
+          title: title.trim(),
+          description: description.trim() || null,
+          priority,
+          dueDate: dueDate || null,
+        },
+      }).unwrap();
       onCreated();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.details.length > 0) {
-          const errors: Record<string, string> = {};
-          for (const d of err.details) errors[d.field] = d.message;
-          setFieldErrors(errors);
-        } else {
-          setGeneralError(err.message);
-        }
-      } else {
-        setGeneralError("An unexpected error occurred.");
-      }
-    } finally {
-      setPending(false);
+    } catch {
+      // error state is tracked by the mutation hook
     }
   }
 
@@ -136,10 +130,7 @@ export function CreateTaskForm({ projectId, onCreated, onCancel }: Props) {
       </div>
 
       <div>
-        <label
-          htmlFor="ctf-description"
-          className="block text-sm font-medium"
-        >
+        <label htmlFor="ctf-description" className="block text-sm font-medium">
           Description
         </label>
         <textarea
@@ -154,10 +145,10 @@ export function CreateTaskForm({ projectId, onCreated, onCancel }: Props) {
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={pending}
+          disabled={isLoading}
           className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
-          {pending ? "Creating…" : "Create task"}
+          {isLoading ? "Creating…" : "Create task"}
         </button>
         <button
           type="button"

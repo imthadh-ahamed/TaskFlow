@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateTaskStatus } from "@/lib/api/tasks";
-import { ApiError } from "@/lib/api/client";
+import { useUpdateTaskStatusMutation } from "@/store/api";
 import { CreateTaskForm } from "./CreateTaskForm";
 import type { TaskDto, TaskPriority, TaskStatus } from "@/types/api";
 
@@ -68,6 +67,8 @@ export function TaskBoard({ projectId, tasks, total, priorityFilter }: Props) {
   const [movingTaskId, setMovingTaskId] = useState<number | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
 
+  const [updateTaskStatus] = useUpdateTaskStatusMutation();
+
   const grouped = groupByStatus(tasks);
 
   function handlePriorityChange(value: string) {
@@ -81,12 +82,14 @@ export function TaskBoard({ projectId, tasks, total, priorityFilter }: Props) {
     setMoveError(null);
     setMovingTaskId(taskId);
     try {
-      await updateTaskStatus(taskId, newStatus);
+      await updateTaskStatus({ taskId, status: newStatus }).unwrap();
       router.refresh();
     } catch (err) {
-      const msg =
-        err instanceof ApiError ? err.message : "Failed to move task.";
-      setMoveError(msg);
+      // unwrap() throws the RTK Query error object
+      const rtkErr = err as { data?: { message?: string }; message?: string };
+      setMoveError(
+        rtkErr?.data?.message ?? rtkErr?.message ?? "Failed to move task.",
+      );
     } finally {
       setMovingTaskId(null);
     }

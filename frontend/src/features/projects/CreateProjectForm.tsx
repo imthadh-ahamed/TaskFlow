@@ -2,48 +2,40 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createProject } from "@/lib/api/projects";
-import { ApiError } from "@/lib/api/client";
+import { useCreateProjectMutation } from "@/store/api";
+import { getRtkErrorMessage, getRtkFieldErrors } from "@/lib/api/rtk-error";
 
 export function CreateProjectForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [ownerId, setOwnerId] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [generalError, setGeneralError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+
+  const [createProject, { isLoading, error, reset }] =
+    useCreateProjectMutation();
+
+  const fieldErrors = Object.fromEntries(
+    getRtkFieldErrors(error).map((d) => [d.field, d.message]),
+  );
+  const generalError =
+    getRtkFieldErrors(error).length === 0 ? getRtkErrorMessage(error) : null;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setFieldErrors({});
-    setGeneralError(null);
-    setPending(true);
+    reset();
 
     try {
       await createProject({
         name: name.trim(),
         description: description.trim() || null,
         ownerId: Number(ownerId),
-      });
+      }).unwrap();
       setName("");
       setDescription("");
       setOwnerId("");
       router.refresh();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        if (err.details.length > 0) {
-          const errors: Record<string, string> = {};
-          for (const d of err.details) errors[d.field] = d.message;
-          setFieldErrors(errors);
-        } else {
-          setGeneralError(err.message);
-        }
-      } else {
-        setGeneralError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setPending(false);
+    } catch {
+      // error state is tracked by the mutation hook
     }
   }
 
@@ -59,10 +51,7 @@ export function CreateProjectForm() {
       )}
 
       <div>
-        <label
-          htmlFor="cpf-name"
-          className="block text-sm font-medium"
-        >
+        <label htmlFor="cpf-name" className="block text-sm font-medium">
           Name <span aria-hidden="true">*</span>
         </label>
         <input
@@ -133,10 +122,10 @@ export function CreateProjectForm() {
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={isLoading}
         className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
       >
-        {pending ? "Creating…" : "Create project"}
+        {isLoading ? "Creating…" : "Create project"}
       </button>
     </form>
   );
