@@ -80,7 +80,7 @@ Use the versions already selected in the initialized project where possible. Bef
 
 | Area | Baseline |
 |---|---|
-| Frontend | Next.js App Router, React, TypeScript strict mode, Tailwind CSS, ESLint, npm |
+| Frontend | Next.js App Router, React, TypeScript strict mode, Tailwind CSS, ESLint, npm Redux Toolkit, RTK Query |
 | Backend | Java 21, Spring Boot, Maven, Spring Web |
 | Persistence | PostgreSQL, Spring Data JPA/Hibernate when added |
 | Migrations | Flyway-compatible versioned SQL assets |
@@ -600,17 +600,26 @@ com.taskflow/
 **Requirement:** Make frontend/backend integration predictable and debuggable.
 
 **Work:**
-- Verify actual endpoints and response DTOs.
-- Configure a backend base URL through environment variables.
-- Define shared frontend types based on the API contract; avoid manually maintaining conflicting definitions.
-- Standardize error parsing.
-- Handle network failures and expired sessions when authentication is introduced.
-- Configure CORS narrowly for local development and later deployment.
+- Configure Redux Toolkit Query (RTK Query) as the standard client-side API data-fetching and caching solution.
+- Configure a centralized RTK Query API slice using `createApi` and `fetchBaseQuery`.
+- Configure the Redux store and integrate it with the Next.js App Router using an appropriate client-side provider.
+- Add `@reduxjs/toolkit` and `react-redux` only if they are not already installed.
+- Use typed endpoint arguments and responses based on verified backend DTOs; do not invent endpoints or response fields.
+- Use RTK Query cache tags and invalidation for mutations where appropriate.
+- Configure `credentials: "include"` for requests requiring cookie-based authentication.
+- Handle HTTP errors, network failures, and unexpected responses consistently without exposing stack traces.
+- Do not store JWT values in Redux state, localStorage, or sessionStorage.
+- Keep the full JWT refresh, rotation, logout, and revocation lifecycle in the dedicated authentication tasks.
+- Add or update tests for API configuration, error handling, and representative endpoint behavior.
 
 **Acceptance criteria:**
-- Frontend calls the correct backend URLs.
-- Types match actual API payloads.
-- Errors are displayed without exposing internal stack traces.
+- RTK Query is configured centrally and used for applicable client-side backend requests.
+- The Redux store and provider work correctly with the Next.js App Router.
+- Request and response types match verified backend contracts.
+- Loading, success, error, and network-failure states are handled appropriately.
+- Cookie credentials are configured where required by the authentication design.
+- JWT values are not exposed to JavaScript or persisted in Redux/browser storage.
+- Relevant tests, lint, type-check, and production build checks pass where supported.
 - No secret is placed in a `NEXT_PUBLIC_` variable.
 
 ## T8.2 — Add API documentation
