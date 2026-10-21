@@ -1,5 +1,7 @@
 package com.taskflow.membership.infrastructure;
 
+import com.taskflow.membership.domain.MemberRole;
+import com.taskflow.membership.domain.ProjectMember;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,17 +16,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Integration tests for the {@code remove_project_member} PostgreSQL procedure
- * (V6 migration). Requires a running PostgreSQL instance. If unavailable the suite
- * skips gracefully via JUnit 5 assumptions in {@code @BeforeAll}.
+ * Integration tests for member stored procedures: V6 {@code remove_project_member}
+ * and V9 add/find/updateRole procedures.
  *
- * <p>Each test runs inside a transaction that is rolled back on completion,
- * so no persistent test data is left in the database.
+ * <p>Requires a running PostgreSQL instance; skips gracefully otherwise.
+ * Each test runs in a transaction that rolls back on completion.
  */
 @Tag("integration")
 @SpringBootTest
@@ -107,5 +110,77 @@ class MemberProcedureIT {
 
         assertThatExceptionOfType(DataAccessException.class)
                 .isThrownBy(() -> memberRepository.remove(projectId, nonMemberUserId));
+    }
+
+    // --- AddProjectMember (V9) ---
+
+    @Test
+    void addMember_returnsMemberWithCorrectRole() {
+        long projectId = projectRepository.save(ownerUserId, "Add Member Test", null).id();
+
+        ProjectMember member = memberRepository.add(projectId, memberUserId, MemberRole.MEMBER);
+
+        assertThat(member.userId()).isEqualTo(memberUserId);
+        assertThat(member.projectId()).isEqualTo(projectId);
+        assertThat(member.role()).isEqualTo(MemberRole.MEMBER);
+        assertThat(member.createdAt()).isNotNull();
+    }
+
+    // --- GetMembersByProjectId (V9) ---
+
+    @Test
+    void findByProjectId_returnsOwnerAfterCreate() {
+        long projectId = projectRepository.save(ownerUserId, "List Members Test", null).id();
+
+        List<ProjectMember> members = memberRepository.findByProjectId(projectId);
+
+        assertThat(members).hasSize(1);
+        assertThat(members.get(0).userId()).isEqualTo(ownerUserId);
+        assertThat(members.get(0).role()).isEqualTo(MemberRole.OWNER);
+    }
+
+    @Test
+    void findByProjectId_includesAddedMember() {
+        long projectId = projectRepository.save(ownerUserId, "Members List Test 2", null).id();
+        memberRepository.add(projectId, memberUserId, MemberRole.VIEWER);
+
+        List<ProjectMember> members = memberRepository.findByProjectId(projectId);
+
+        assertThat(members).hasSize(2);
+        assertThat(members).anyMatch(m -> m.userId() == memberUserId && m.role() == MemberRole.VIEWER);
+    }
+
+    // --- GetMemberByProjectAndUser (V9) ---
+
+    @Test
+    void findByProjectAndUser_returnsOwner() {
+        long projectId = projectRepository.save(ownerUserId, "Find Member Test", null).id();
+
+        Optional<ProjectMember> result = memberRepository.findByProjectAndUser(projectId, ownerUserId);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().role()).isEqualTo(MemberRole.OWNER);
+    }
+
+    @Test
+    void findByProjectAndUser_returnsEmpty_whenNotMember() {
+        long projectId = projectRepository.save(ownerUserId, "Non Member Test", null).id();
+
+        Optional<ProjectMember> result = memberRepository.findByProjectAndUser(projectId, Long.MAX_VALUE);
+
+        assertThat(result).isEmpty();
+    }
+
+    // --- UpdateMemberRole (V9) ---
+
+    @Test
+    void updateRole_changesRoleSuccessfully() {
+        long projectId = projectRepository.save(ownerUserId, "Update Role Test", null).id();
+        memberRepository.add(projectId, memberUserId, MemberRole.MEMBER);
+
+        Optional<ProjectMember> updated = memberRepository.updateRole(projectId, memberUserId, MemberRole.VIEWER);
+
+        assertThat(updated).isPresent();
+        assertThat(updated.get().role()).isEqualTo(MemberRole.VIEWER);
     }
 }

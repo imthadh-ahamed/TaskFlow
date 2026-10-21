@@ -14,17 +14,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Integration tests for the {@code create_project_with_owner} PostgreSQL procedure
- * (V6 migration). Requires a running PostgreSQL instance. If unavailable the suite
- * skips gracefully via JUnit 5 assumptions in {@code @BeforeAll}.
+ * Integration tests for project stored procedures: V6 {@code create_project_with_owner}
+ * and V8 find/update/delete/count procedures.
  *
- * <p>Each test runs inside a transaction that is rolled back on completion,
- * so no persistent test data is left in the database.
+ * <p>Requires a running PostgreSQL instance; skips gracefully otherwise.
+ * Each test runs in a transaction that rolls back on completion.
  */
 @Tag("integration")
 @SpringBootTest
@@ -98,5 +99,71 @@ class ProjectProcedureIT {
 
         assertThatExceptionOfType(DataAccessException.class)
                 .isThrownBy(() -> projectRepository.save(nonExistentUserId, "Bad Project", null));
+    }
+
+    // --- GetProjectById (V8) ---
+
+    @Test
+    void findById_returnsProject() {
+        long id = projectRepository.save(testUserId, "Find Me", "desc").id();
+
+        Optional<Project> result = projectRepository.findById(id);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().name()).isEqualTo("Find Me");
+        assertThat(result.get().description()).isEqualTo("desc");
+    }
+
+    @Test
+    void findById_returnsEmpty_whenNotFound() {
+        Optional<Project> result = projectRepository.findById(Long.MAX_VALUE);
+
+        assertThat(result).isEmpty();
+    }
+
+    // --- GetProjectsByMemberId / CountProjectsByMemberId (V8) ---
+
+    @Test
+    void findByMemberId_returnsOwnedProject() {
+        projectRepository.save(testUserId, "Listed Project", null);
+
+        List<Project> projects = projectRepository.findByMemberId(testUserId, 10, 0);
+
+        assertThat(projects).isNotEmpty();
+        assertThat(projects).anyMatch(p -> p.name().equals("Listed Project"));
+    }
+
+    @Test
+    void countByMemberId_includesOwnedProject() {
+        projectRepository.save(testUserId, "Count Project", null);
+
+        long count = projectRepository.countByMemberId(testUserId);
+
+        assertThat(count).isGreaterThanOrEqualTo(1L);
+    }
+
+    // --- UpdateProject (V8) ---
+
+    @Test
+    void updateProject_changesNameAndDescription() {
+        long id = projectRepository.save(testUserId, "Old Name", "old desc").id();
+
+        Optional<Project> updated = projectRepository.update(id, "New Name", "new desc");
+
+        assertThat(updated).isPresent();
+        assertThat(updated.get().name()).isEqualTo("New Name");
+        assertThat(updated.get().description()).isEqualTo("new desc");
+    }
+
+    // --- DeleteProject (V8) ---
+
+    @Test
+    void deleteProject_removesProject() {
+        long id = projectRepository.save(testUserId, "Delete Me", null).id();
+
+        projectRepository.deleteById(id);
+
+        Optional<Project> result = projectRepository.findById(id);
+        assertThat(result).isEmpty();
     }
 }

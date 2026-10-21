@@ -1,13 +1,16 @@
 package com.taskflow.comment.infrastructure;
 
 import com.taskflow.comment.domain.Comment;
+import org.postgresql.util.PGobject;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.time.OffsetDateTime;
@@ -25,15 +28,12 @@ public class JdbcCommentRepository {
 
     public Comment save(long taskId, long authorId, String body) {
         return jdbc.execute((ConnectionCallback<Comment>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.SaveComment(?, ?, ?, ?)")) {
-                cs.setLong(1, taskId);
-                cs.setLong(2, authorId);
-                cs.setString(3, body);
-                cs.registerOutParameter(4, Types.OTHER);
-                cs.execute();
-                return fetchList(conn, cs.getString(4), rowMapper()).get(0);
-            }
+            callWithCursor(conn, "CALL public.SaveComment(?, ?, ?, ?)", ps -> {
+                ps.setLong(1, taskId);
+                ps.setLong(2, authorId);
+                ps.setString(3, body);
+            }, "save_comment_cursor");
+            return fetchList(conn, "save_comment_cursor", rowMapper()).get(0);
         });
     }
 
@@ -48,15 +48,12 @@ public class JdbcCommentRepository {
                     "Limit must be positive and offset must not be negative");
         }
         return jdbc.execute((ConnectionCallback<List<Comment>>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.GetCommentsTaskId(?, ?, ?, ?)")) {
-                cs.setLong(1, taskId);
-                cs.setInt(2, limit);
-                cs.setInt(3, offset);
-                cs.registerOutParameter(4, Types.OTHER);
-                cs.execute();
-                return fetchList(conn, cs.getString(4), rowMapper());
-            }
+            callWithCursor(conn, "CALL public.GetCommentsTaskId(?, ?, ?, ?)", ps -> {
+                ps.setLong(1, taskId);
+                ps.setInt(2, limit);
+                ps.setInt(3, offset);
+            }, "comments_cursor");
+            return fetchList(conn, "comments_cursor", rowMapper());
         });
     }
 
@@ -79,13 +76,34 @@ public class JdbcCommentRepository {
 
     private <T> List<T> fetchList(java.sql.Connection conn, String cursorName,
                                    RowMapper<T> mapper) throws java.sql.SQLException {
+        List<T> results = new ArrayList<>();
         try (Statement fetch = conn.createStatement();
              ResultSet rs = fetch.executeQuery("FETCH ALL FROM \"" + cursorName + "\"")) {
-            List<T> results = new ArrayList<>();
             while (rs.next()) {
                 results.add(mapper.mapRow(rs, results.size()));
             }
-            return results;
+        }
+        try (Statement close = conn.createStatement()) {
+            close.execute("CLOSE \"" + cursorName + "\"");
+        }
+        return results;
+    }
+
+    @FunctionalInterface
+    private interface ParamSetter {
+        void set(PreparedStatement ps) throws SQLException;
+    }
+
+    private void callWithCursor(java.sql.Connection conn, String sql,
+                                 ParamSetter setter, String cursorName)
+            throws SQLException {
+        PGobject cursor = new PGobject();
+        cursor.setType("refcursor");
+        cursor.setValue(cursorName);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            setter.set(ps);
+            ps.setObject(ps.getParameterMetaData().getParameterCount(), cursor);
+            ps.execute();
         }
     }
 

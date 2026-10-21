@@ -1,13 +1,16 @@
 package com.taskflow.project.infrastructure;
 
 import com.taskflow.project.domain.Project;
+import org.postgresql.util.PGobject;
 import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.sql.CallableStatement;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -55,40 +58,27 @@ public class JdbcProjectRepository {
 
     public Optional<Project> findById(long id) {
         return jdbc.execute((ConnectionCallback<Optional<Project>>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.GetProjectById(?, ?)")) {
-                cs.setLong(1, id);
-                cs.registerOutParameter(2, Types.OTHER);
-                cs.execute();
-                return fetchOptional(conn, cs.getString(2), rowMapper());
-            }
+            callWithCursor(conn, "CALL public.GetProjectById(?, ?)",
+                    ps -> ps.setLong(1, id), "get_project_by_id_cursor");
+            return fetchOptional(conn, "get_project_by_id_cursor", rowMapper());
         });
     }
 
     public List<Project> findAll(int limit, int offset) {
         return jdbc.execute((ConnectionCallback<List<Project>>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.GetAllProjects(?, ?, ?)")) {
-                cs.setInt(1, limit);
-                cs.setInt(2, offset);
-                cs.registerOutParameter(3, Types.OTHER);
-                cs.execute();
-                return fetchList(conn, cs.getString(3), rowMapper());
-            }
+            callWithCursor(conn, "CALL public.GetAllProjects(?, ?, ?)",
+                    ps -> { ps.setInt(1, limit); ps.setInt(2, offset); },
+                    "get_all_projects_cursor");
+            return fetchList(conn, "get_all_projects_cursor", rowMapper());
         });
     }
 
     public List<Project> findByMemberId(long userId, int limit, int offset) {
         return jdbc.execute((ConnectionCallback<List<Project>>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.GetProjectsByMemberId(?, ?, ?, ?)")) {
-                cs.setLong(1, userId);
-                cs.setInt(2, limit);
-                cs.setInt(3, offset);
-                cs.registerOutParameter(4, Types.OTHER);
-                cs.execute();
-                return fetchList(conn, cs.getString(4), rowMapper());
-            }
+            callWithCursor(conn, "CALL public.GetProjectsByMemberId(?, ?, ?, ?)",
+                    ps -> { ps.setLong(1, userId); ps.setInt(2, limit); ps.setInt(3, offset); },
+                    "get_projects_by_member_cursor");
+            return fetchList(conn, "get_projects_by_member_cursor", rowMapper());
         });
     }
 
@@ -119,16 +109,13 @@ public class JdbcProjectRepository {
 
     public Optional<Project> update(long id, String name, String description) {
         return jdbc.execute((ConnectionCallback<Optional<Project>>) conn -> {
-            try (CallableStatement cs = conn.prepareCall(
-                    "CALL public.UpdateProject(?, ?, ?, ?)")) {
-                cs.setLong(1, id);
-                cs.setString(2, name);
-                if (description != null) cs.setString(3, description);
-                else cs.setNull(3, Types.VARCHAR);
-                cs.registerOutParameter(4, Types.OTHER);
-                cs.execute();
-                return fetchOptional(conn, cs.getString(4), rowMapper());
-            }
+            callWithCursor(conn, "CALL public.UpdateProject(?, ?, ?, ?)", ps -> {
+                ps.setLong(1, id);
+                ps.setString(2, name);
+                if (description != null) ps.setString(3, description);
+                else ps.setNull(3, Types.VARCHAR);
+            }, "update_project_cursor");
+            return fetchOptional(conn, "update_project_cursor", rowMapper());
         });
     }
 
@@ -151,20 +138,41 @@ public class JdbcProjectRepository {
 
     private <T> List<T> fetchList(java.sql.Connection conn, String cursorName,
                                    RowMapper<T> mapper) throws java.sql.SQLException {
+        List<T> results = new ArrayList<>();
         try (Statement fetch = conn.createStatement();
              ResultSet rs = fetch.executeQuery("FETCH ALL FROM \"" + cursorName + "\"")) {
-            List<T> results = new ArrayList<>();
             while (rs.next()) {
                 results.add(mapper.mapRow(rs, results.size()));
             }
-            return results;
         }
+        try (Statement close = conn.createStatement()) {
+            close.execute("CLOSE \"" + cursorName + "\"");
+        }
+        return results;
     }
 
     private <T> Optional<T> fetchOptional(java.sql.Connection conn, String cursorName,
                                            RowMapper<T> mapper) throws java.sql.SQLException {
         List<T> rows = fetchList(conn, cursorName, mapper);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
+    }
+
+    @FunctionalInterface
+    private interface ParamSetter {
+        void set(PreparedStatement ps) throws SQLException;
+    }
+
+    private void callWithCursor(java.sql.Connection conn, String sql,
+                                 ParamSetter setter, String cursorName)
+            throws SQLException {
+        PGobject cursor = new PGobject();
+        cursor.setType("refcursor");
+        cursor.setValue(cursorName);
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            setter.set(ps);
+            ps.setObject(ps.getParameterMetaData().getParameterCount(), cursor);
+            ps.execute();
+        }
     }
 
     private RowMapper<Project> rowMapper() {
