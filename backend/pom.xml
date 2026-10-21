@@ -68,6 +68,19 @@
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 
+		<!--
+			springdoc-openapi 3.x targets Spring Boot 4.x / Spring Framework 7.x.
+			Not managed by Spring Boot BOM — version pinned explicitly.
+			Bundles: OpenAPI spec generator + Swagger UI.
+			UI: http://localhost:8080/swagger-ui.html
+			Spec: http://localhost:8080/v3/api-docs
+		-->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.1.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>

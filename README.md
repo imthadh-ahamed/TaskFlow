@@ -38,6 +38,9 @@ TaskFlow/
 |---------|-----|
 | Frontend dev server | `http://localhost:3000` |
 | Backend API | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| OpenAPI spec (JSON) | `http://localhost:8080/v3/api-docs` |
+| OpenAPI spec (YAML) | `http://localhost:8080/v3/api-docs.yaml` |
 | PostgreSQL | `localhost:5432` (database `taskflow`) |
 | Redis | `localhost:6379` |
 | Kafka | `localhost:9092` |
