@@ -2,6 +2,7 @@ package com.taskflow.common.api;
 
 import com.taskflow.auth.application.DuplicateEmailException;
 import com.taskflow.auth.application.InvalidCredentialsException;
+import com.taskflow.auth.application.SessionRevokedException;
 import com.taskflow.auth.application.TokenValidationException;
 import com.taskflow.common.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -81,6 +82,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(401).body(new ErrorResponse(
                 401, "Unauthorized", "INVALID_CREDENTIALS",
                 "Invalid credentials", List.of(), now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(SessionRevokedException.class)
+    ResponseEntity<ErrorResponse> handleSessionRevoked(
+            SessionRevokedException ex, HttpServletRequest req) {
+        return ResponseEntity.status(401).body(new ErrorResponse(
+                401, "Unauthorized", "SESSION_REVOKED",
+                "Session has been revoked", List.of(), now(), req.getRequestURI()));
     }
 
     @ExceptionHandler(TokenValidationException.class)

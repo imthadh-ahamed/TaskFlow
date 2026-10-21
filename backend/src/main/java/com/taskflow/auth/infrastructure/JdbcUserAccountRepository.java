@@ -26,6 +26,15 @@ class JdbcUserAccountRepository implements UserAccountRepository {
     );
 
     @Override
+    public Optional<UserAccount> findById(Long id) {
+        return jdbc.query(
+                "SELECT id, email, display_name, password_hash, role, is_active " +
+                "FROM users WHERE id = ?",
+                ROW_MAPPER, id
+        ).stream().findFirst();
+    }
+
+    @Override
     public Optional<UserAccount> findByEmail(String email) {
         return jdbc.query(
                 "SELECT id, email, display_name, password_hash, role, is_active " +

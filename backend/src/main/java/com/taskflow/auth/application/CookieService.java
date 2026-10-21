@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class CookieService {
 
-    static final String ACCESS_COOKIE = "tf_access";
-    static final String REFRESH_COOKIE = "tf_refresh";
+    public static final String ACCESS_COOKIE = "tf_access";
+    public static final String REFRESH_COOKIE = "tf_refresh";
     private static final String ACCESS_PATH = "/api";
     private static final String REFRESH_PATH = "/api/v1/auth/refresh";
     private static final String SAME_SITE = "Strict";

@@ -8,5 +8,7 @@ public interface UserAccountRepository {
 
     Optional<UserAccount> findByEmail(String email);
 
+    Optional<UserAccount> findById(Long id);
+
     UserAccount save(String email, String displayName, String passwordHash);
 }
