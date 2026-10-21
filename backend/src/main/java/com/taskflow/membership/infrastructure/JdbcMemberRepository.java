@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.CallableStatement;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -57,10 +58,23 @@ public class JdbcMemberRepository {
                 .stream().findFirst();
     }
 
+    /**
+     * Removes a member from a project by calling the {@code remove_project_member}
+     * stored procedure (V6 migration). The procedure enforces that owners cannot be
+     * removed and raises an exception if the member is not found — providing
+     * database-level defense-in-depth on top of the service-layer checks.
+     */
     public boolean remove(long projectId, long userId) {
-        return jdbc.update(
-                "DELETE FROM project_members WHERE project_id = ? AND user_id = ?",
-                projectId, userId) > 0;
+        jdbc.execute((java.sql.Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.remove_project_member(?, ?)")) {
+                cs.setLong(1, projectId);
+                cs.setLong(2, userId);
+                cs.execute();
+            }
+            return null;
+        });
+        return true;
     }
 
     private RowMapper<ProjectMember> rowMapper() {

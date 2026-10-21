@@ -27,8 +27,9 @@ public class ProjectService {
     }
 
     public ProjectResponse createProject(CreateProjectRequest req, long callerId) {
+        // The create_project_with_owner procedure (V6) inserts into both
+        // projects and project_members atomically; no separate add() call needed.
         Project saved = repository.save(callerId, req.name().strip(), req.description());
-        memberRepository.add(saved.id(), callerId, MemberRole.OWNER);
         return toResponse(saved);
     }
 

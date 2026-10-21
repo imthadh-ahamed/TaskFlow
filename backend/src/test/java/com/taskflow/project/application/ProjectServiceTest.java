@@ -22,7 +22,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,21 +43,21 @@ class ProjectServiceTest {
 
     @Test
     void createProject_saves_and_returns_response() {
+        // create_project_with_owner procedure handles member insertion atomically;
+        // the service no longer calls memberRepository.add() explicitly.
         when(repository.save(1L, "Alpha", "desc")).thenReturn(sampleProject(1L));
-        when(memberRepository.add(eq(1L), eq(1L), eq(MemberRole.OWNER))).thenReturn(ownerMember(1L));
 
         ProjectResponse response = service.createProject(new CreateProjectRequest("Alpha", "desc"), 1L);
 
         assertThat(response.id()).isEqualTo(1L);
         assertThat(response.name()).isEqualTo("Alpha");
         verify(repository).save(1L, "Alpha", "desc");
-        verify(memberRepository).add(1L, 1L, MemberRole.OWNER);
+        verify(memberRepository, never()).add(anyLong(), anyLong(), any());
     }
 
     @Test
     void createProject_strips_title_whitespace() {
         when(repository.save(1L, "Alpha", null)).thenReturn(sampleProject(1L));
-        when(memberRepository.add(anyLong(), anyLong(), any(MemberRole.class))).thenReturn(ownerMember(1L));
 
         service.createProject(new CreateProjectRequest("  Alpha  ", null), 1L);
 

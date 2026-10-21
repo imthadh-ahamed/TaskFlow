@@ -5,6 +5,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.CallableStatement;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,13 +21,41 @@ public class JdbcProjectRepository {
         this.jdbc = jdbc;
     }
 
+    /**
+     * Creates a project and its owner membership atomically by calling the
+     * {@code create_project_with_owner} stored procedure (V6 migration).
+     * The procedure inserts into {@code projects} and {@code project_members}
+     * in a single PL/pgSQL block; if either insert fails the whole operation
+     * rolls back.
+     */
     public Project save(long ownerId, String name, String description) {
-        String sql = """
-                INSERT INTO projects (owner_id, name, description)
-                VALUES (?, ?, ?)
-                RETURNING id, owner_id, name, description, created_at, updated_at
-                """;
-        return jdbc.queryForObject(sql, rowMapper(), ownerId, name, description);
+        return jdbc.execute((java.sql.Connection conn) -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.create_project_with_owner(?, ?, ?, ?, ?, ?)")) {
+                cs.setLong(1, ownerId);
+                cs.setString(2, name);
+                if (description != null) {
+                    cs.setString(3, description);
+                } else {
+                    cs.setNull(3, Types.VARCHAR);
+                }
+                // INOUT parameters: set initial null value, register as OUT.
+                // PostgreSQL JDBC reports timestamptz as Types.TIMESTAMP (93) in CALL
+                // statements, not as TIMESTAMP_WITH_TIMEZONE (2014).
+                cs.setNull(4, Types.BIGINT);
+                cs.registerOutParameter(4, Types.BIGINT);
+                cs.setNull(5, Types.TIMESTAMP);
+                cs.registerOutParameter(5, Types.TIMESTAMP);
+                cs.setNull(6, Types.TIMESTAMP);
+                cs.registerOutParameter(6, Types.TIMESTAMP);
+                cs.execute();
+                long id = cs.getLong(4);
+                Timestamp createdAtTs = cs.getTimestamp(5);
+                Timestamp updatedAtTs = cs.getTimestamp(6);
+                return new Project(id, ownerId, name, description,
+                        createdAtTs.toInstant(), updatedAtTs.toInstant());
+            }
+        });
     }
 
     public Optional<Project> findById(long id) {
