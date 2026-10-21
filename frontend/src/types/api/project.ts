@@ -10,8 +10,6 @@ export interface ProjectDto {
 export interface CreateProjectBody {
   name: string;
   description: string | null;
-  /** Pre-auth: replaced by the authenticated user's ID once auth is added. */
-  ownerId: number;
 }
 
 export interface UpdateProjectBody {

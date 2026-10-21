@@ -1,5 +1,5 @@
 import type { PageDto, TaskDto, TaskPriority, TaskStatus } from "@/types/api";
-import { apiFetch } from "./client";
+import { serverApiFetch } from "./server-client";
 
 export function fetchTasks(
   projectId: number,
@@ -9,29 +9,14 @@ export function fetchTasks(
 ): Promise<PageDto<TaskDto>> {
   const q = new URLSearchParams({ page: String(page), size: String(size) });
   if (filters.priority) q.set("priority", filters.priority);
-  return apiFetch(`/api/v1/projects/${projectId}/tasks?${q}`);
-}
-
-export function createTask(
-  projectId: number,
-  body: {
-    title: string;
-    description: string | null;
-    priority: TaskPriority | null;
-    dueDate: string | null;
-  },
-): Promise<TaskDto> {
-  return apiFetch(`/api/v1/projects/${projectId}/tasks`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  return serverApiFetch(`/api/v1/projects/${projectId}/tasks?${q}`);
 }
 
 export function updateTaskStatus(
   taskId: number,
   status: TaskStatus,
 ): Promise<TaskDto> {
-  return apiFetch(`/api/v1/tasks/${taskId}/status`, {
+  return serverApiFetch(`/api/v1/tasks/${taskId}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status: status.toUpperCase() }),
   });

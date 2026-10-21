@@ -60,10 +60,6 @@ export default async function ProjectDetailPage({
 
       <dl className="mt-6 space-y-2 text-sm">
         <div className="flex gap-2">
-          <dt className="font-medium">Owner ID:</dt>
-          <dd className="text-zinc-600 dark:text-zinc-400">{project.ownerId}</dd>
-        </div>
-        <div className="flex gap-2">
           <dt className="font-medium">Created:</dt>
           <dd className="text-zinc-600 dark:text-zinc-400">
             <time dateTime={project.createdAt}>

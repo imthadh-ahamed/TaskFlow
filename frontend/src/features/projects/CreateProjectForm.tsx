@@ -9,7 +9,6 @@ export function CreateProjectForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [ownerId, setOwnerId] = useState("");
 
   const [createProject, { isLoading, error, reset }] =
     useCreateProjectMutation();
@@ -28,11 +27,9 @@ export function CreateProjectForm() {
       await createProject({
         name: name.trim(),
         description: description.trim() || null,
-        ownerId: Number(ownerId),
       }).unwrap();
       setName("");
       setDescription("");
-      setOwnerId("");
       router.refresh();
     } catch {
       // error state is tracked by the mutation hook
@@ -87,37 +84,6 @@ export function CreateProjectForm() {
           rows={2}
           className="mt-1 block w-full rounded border border-zinc-300 px-3 py-1.5 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
         />
-      </div>
-
-      <div>
-        <label htmlFor="cpf-owner-id" className="block text-sm font-medium">
-          Owner ID <span aria-hidden="true">*</span>{" "}
-          <span className="font-normal text-zinc-500 dark:text-zinc-400">
-            (dev-stage — replaced by authenticated user after auth is added)
-          </span>
-        </label>
-        <input
-          id="cpf-owner-id"
-          type="number"
-          value={ownerId}
-          onChange={(e) => setOwnerId(e.target.value)}
-          required
-          min={1}
-          aria-describedby={
-            fieldErrors.ownerId ? "cpf-owner-id-error" : undefined
-          }
-          aria-invalid={fieldErrors.ownerId ? true : undefined}
-          className="mt-1 block w-full rounded border border-zinc-300 px-3 py-1.5 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        {fieldErrors.ownerId && (
-          <p
-            id="cpf-owner-id-error"
-            role="alert"
-            className="mt-1 text-xs text-red-600 dark:text-red-400"
-          >
-            {fieldErrors.ownerId}
-          </p>
-        )}
       </div>
 
       <button

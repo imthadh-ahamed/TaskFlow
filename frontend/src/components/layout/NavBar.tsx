@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { APP_NAME } from "@/constants/app";
+import { useAppSelector, useAppDispatch } from "@/store/store";
+import { useLogoutMutation } from "@/store/api";
+import { clearUser } from "@/store/slices/authSlice";
 
 type NavLink = { href: string; label: string; placeholder?: true };
 
@@ -14,6 +17,20 @@ const NAV_LINKS: NavLink[] = [
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((s) => s.auth.user);
+  const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
+
+  async function handleLogout() {
+    try {
+      await logout().unwrap();
+    } catch {
+      // Even if the backend call fails, clear local state
+    }
+    dispatch(clearUser());
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-10 border-b border-zinc-200 bg-background dark:border-zinc-800">
@@ -51,6 +68,31 @@ export default function NavBar() {
             })}
           </ul>
         </nav>
+
+        <div className="ml-auto flex items-center gap-3">
+          {user ? (
+            <>
+              <span className="hidden text-sm text-zinc-600 dark:text-zinc-400 sm:block">
+                {user.displayName}
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                {isLoggingOut ? "Signing out…" : "Sign out"}
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Sign in
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
