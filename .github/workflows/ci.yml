@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Lint
         run: npm run lint
@@ -61,7 +61,7 @@ jobs:
           cache: 'maven'
 
       - name: Build and run unit tests
-        run: ./mvnw test
+        run: bash mvnw test
         env:
           # Stub values — never real secrets; used by SecurityConfig binding only
           JWT_SECRET: ci-secret-stub-value-that-is-at-least-32-characters-long
