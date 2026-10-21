@@ -63,11 +63,11 @@ jobs:
       - name: Build and run unit tests
         run: bash mvnw test
         env:
-          # Stub values — never real secrets; used by SecurityConfig binding only
+          # Stub value — never a real secret; used by JwtService @Value binding only.
+          # DataSource env vars are intentionally absent: unit tests exclude DataSource
+          # auto-config via application.properties, and IT tests skip gracefully via
+          # assumeTrue when PostgreSQL is unavailable.
           JWT_SECRET: ci-secret-stub-value-that-is-at-least-32-characters-long
-          SPRING_DATASOURCE_URL: ""
-          SPRING_DATASOURCE_USERNAME: ""
-          SPRING_DATASOURCE_PASSWORD: ""
 
   # ── SQL conventions ─────────────────────────────────────────────────────────
   sql-conventions:
