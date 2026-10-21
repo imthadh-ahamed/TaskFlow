@@ -35,6 +35,12 @@
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 
+		<!-- Bean Validation (@NotBlank, @Size, etc.) for request DTO validation -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
 		<!-- JDBC + HikariCP connection pool; JPA/Hibernate added in a later phase -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
