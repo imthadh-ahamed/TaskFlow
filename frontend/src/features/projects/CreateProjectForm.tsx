@@ -21,6 +21,7 @@ export function CreateProjectForm() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isLoading) return;
     reset();
 
     try {

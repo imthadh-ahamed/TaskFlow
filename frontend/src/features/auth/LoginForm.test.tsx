@@ -94,6 +94,21 @@ describe("LoginForm", () => {
     });
   });
 
+  it("does not call login when already loading", async () => {
+    vi.mocked(useLoginMutation).mockReturnValue([
+      mockLogin,
+      { isLoading: true, error: undefined, reset: mockReset } as ReturnType<typeof useLoginMutation>[1],
+    ]);
+    const { container } = render(
+      <Provider store={makeStore()}>
+        <LoginForm />
+      </Provider>,
+    );
+    const form = container.querySelector("form")!;
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
   it("has a register link", () => {
     renderLoginForm();
     expect(screen.getByRole("link", { name: /register/i })).toBeInTheDocument();

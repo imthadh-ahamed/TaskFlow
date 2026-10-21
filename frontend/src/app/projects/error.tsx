@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { getServerErrorMessage } from "@/lib/api/rtk-error";
 
 export default function ProjectsError({
   error,
@@ -23,7 +24,7 @@ export default function ProjectsError({
           Failed to load projects
         </h2>
         <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-          {error.message}
+          {getServerErrorMessage(error)}
         </p>
         <button
           onClick={reset}

@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUpdateTaskStatusMutation } from "@/store/api";
 import { CreateTaskForm } from "./CreateTaskForm";
+import { getRtkErrorMessage } from "@/lib/api/rtk-error";
+import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import type { SerializedError } from "@reduxjs/toolkit";
 import type { TaskDto, TaskPriority, TaskStatus } from "@/types/api";
 
 // ── Display maps ─────────────────────────────────────────────────────────────
@@ -85,11 +88,8 @@ export function TaskBoard({ projectId, tasks, total, priorityFilter }: Props) {
       await updateTaskStatus({ taskId, status: newStatus }).unwrap();
       router.refresh();
     } catch (err) {
-      // unwrap() throws the RTK Query error object
-      const rtkErr = err as { data?: { message?: string }; message?: string };
-      setMoveError(
-        rtkErr?.data?.message ?? rtkErr?.message ?? "Failed to move task.",
-      );
+      const rtkErr = err as FetchBaseQueryError | SerializedError;
+      setMoveError(getRtkErrorMessage(rtkErr) || "Failed to move task.");
     } finally {
       setMovingTaskId(null);
     }

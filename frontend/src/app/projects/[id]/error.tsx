@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { getServerErrorMessage } from "@/lib/api/rtk-error";
 
 export default function ProjectDetailError({
   error,
@@ -24,7 +25,7 @@ export default function ProjectDetailError({
           Failed to load project
         </h2>
         <p className="mt-1 text-sm text-red-700 dark:text-red-300">
-          {error.message}
+          {getServerErrorMessage(error)}
         </p>
         <div className="mt-3 flex gap-3">
           <button

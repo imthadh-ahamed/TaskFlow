@@ -34,6 +34,7 @@ export function CreateTaskForm({ projectId, onCreated, onCancel }: Props) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isLoading) return;
     reset();
 
     try {
