@@ -9,6 +9,11 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 class TaskTest {
 
+    /** Minimal constructor helper — only the fields the domain rules care about. */
+    private static Task task(String title, TaskStatus status, TaskPriority priority) {
+        return new Task(null, null, null, title, null, status, priority, null, null, null);
+    }
+
     // --- create() factory ---
 
     @Test
@@ -38,14 +43,14 @@ class TaskTest {
     @Test
     void null_title_is_rejected() {
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new Task(null, null, TaskStatus.TODO, TaskPriority.MEDIUM))
+                .isThrownBy(() -> task(null, TaskStatus.TODO, TaskPriority.MEDIUM))
                 .withMessageContaining("blank");
     }
 
     @Test
     void title_at_max_length_is_accepted() {
         String title = "a".repeat(Task.MAX_TITLE_LENGTH);
-        assertThat(new Task(title, null, TaskStatus.TODO, TaskPriority.MEDIUM).title())
+        assertThat(task(title, TaskStatus.TODO, TaskPriority.MEDIUM).title())
                 .hasSize(Task.MAX_TITLE_LENGTH);
     }
 
@@ -53,7 +58,7 @@ class TaskTest {
     void title_exceeding_max_length_is_rejected() {
         String title = "a".repeat(Task.MAX_TITLE_LENGTH + 1);
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new Task(title, null, TaskStatus.TODO, TaskPriority.MEDIUM))
+                .isThrownBy(() -> task(title, TaskStatus.TODO, TaskPriority.MEDIUM))
                 .withMessageContaining("255");
     }
 
@@ -62,14 +67,14 @@ class TaskTest {
     @Test
     void null_status_is_rejected() {
         assertThatNullPointerException()
-                .isThrownBy(() -> new Task("Title", null, null, TaskPriority.MEDIUM))
+                .isThrownBy(() -> task("Title", null, TaskPriority.MEDIUM))
                 .withMessageContaining("status");
     }
 
     @Test
     void null_priority_is_rejected() {
         assertThatNullPointerException()
-                .isThrownBy(() -> new Task("Title", null, TaskStatus.TODO, null))
+                .isThrownBy(() -> task("Title", TaskStatus.TODO, null))
                 .withMessageContaining("priority");
     }
 

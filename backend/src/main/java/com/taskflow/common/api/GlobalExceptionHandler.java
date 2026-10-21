@@ -6,6 +6,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -43,6 +44,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(new ErrorResponse(
                 400, "Validation failed", "VALIDATION_ERROR",
                 "Validation failed", details, now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ErrorResponse> handleUnreadable(
+            HttpMessageNotReadableException ex, HttpServletRequest req) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(
+                400, "Bad Request", "INVALID_REQUEST",
+                "Request body is malformed or contains an unrecognised value",
+                List.of(), now(), req.getRequestURI()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

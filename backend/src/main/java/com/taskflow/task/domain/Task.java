@@ -1,19 +1,28 @@
 package com.taskflow.task.domain;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Objects;
 
 /**
- * Pure domain model for a task. No persistence annotations — mapping to/from
- * the database is the infrastructure layer's responsibility.
+ * Full task representation. Persistence fields (id, projectId, createdAt,
+ * updatedAt) are null for tasks that have not yet been saved.
+ * No persistence annotations — mapping is the infrastructure layer's job.
  */
 public record Task(
+        Long id,
+        Long projectId,
+        Long assigneeId,
         String title,
         String description,
         TaskStatus status,
-        TaskPriority priority
+        TaskPriority priority,
+        LocalDate dueDate,
+        Instant createdAt,
+        Instant updatedAt
 ) {
 
-    static final int MAX_TITLE_LENGTH = 255;
+    public static final int MAX_TITLE_LENGTH = 255;
 
     public Task {
         Objects.requireNonNull(status, "Task status must not be null");
@@ -28,8 +37,10 @@ public record Task(
         }
     }
 
+    /** Convenience factory for unsaved tasks with default status and priority. */
     public static Task create(String title) {
-        return new Task(title, null, TaskStatus.TODO, TaskPriority.MEDIUM);
+        return new Task(null, null, null, title, null,
+                TaskStatus.TODO, TaskPriority.MEDIUM, null, null, null);
     }
 
     public Task transitionTo(TaskStatus next) {
@@ -38,6 +49,7 @@ public record Task(
             throw new IllegalStateException(
                     "Cannot transition task from " + status + " to " + next);
         }
-        return new Task(title, description, next, priority);
+        return new Task(id, projectId, assigneeId, title, description,
+                next, priority, dueDate, createdAt, updatedAt);
     }
 }
