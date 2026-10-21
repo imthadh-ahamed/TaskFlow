@@ -245,6 +245,8 @@ class TaskControllerTest {
                                 .content("""
                                                 {"status":"DONE"}
                                                 """))
-                                .andExpect(status().isInternalServerError());
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.code").value("INVALID_TRANSITION"))
+                                .andExpect(jsonPath("$.message").value("Cannot transition task from TODO to DONE"));
         }
 }
