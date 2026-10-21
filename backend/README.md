@@ -69,14 +69,16 @@ Base package: `com.taskflow`. Code is organised by business capability, not by t
 ```
 com.taskflow/
 ├── BackendApplication.java      # Spring Boot entry point
-├── auth/                        # Authentication and authorisation (added when auth phase begins)
+├── auth/                        # Authentication and authorisation
 │   ├── api/                     # Controllers — HTTP mapping and request validation only
 │   ├── application/             # Use-case orchestration (services)
 │   ├── domain/                  # Business rules, entities, value objects
 │   └── infrastructure/          # Repositories, external integrations
 ├── project/                     # Project management capability (same sub-layers as above)
+├── membership/                  # Project membership and roles
 ├── task/                        # Task management capability
-├── common/                      # Shared utilities, base classes, cross-cutting concerns
+├── comment/                     # Task comment capability
+├── common/                      # Shared utilities, exception handling, security filters
 └── config/                      # Spring configuration beans (@Configuration classes)
 ```
 
@@ -89,3 +91,22 @@ com.taskflow/
 ## API
 
 All endpoints are versioned under `/api/v1`. See the root [README](../README.md) for the shared API contract and error response shape.
+
+### Error responses
+
+All errors are handled centrally by `GlobalExceptionHandler` and return the stable JSON shape defined in the root README. The `X-Request-Id` response header is set on every error response — it echoes the incoming `X-Request-Id` request header when present, or generates a UUID otherwise.
+
+| Exception | HTTP status | `code` field |
+|-----------|-------------|--------------|
+| `MethodArgumentNotValidException` | 400 | `VALIDATION_ERROR` |
+| `IllegalArgumentException` | 400 | `INVALID_ARGUMENT` |
+| `IllegalStateException` | 400 | `INVALID_TRANSITION` |
+| `ResourceNotFoundException` | 404 | `NOT_FOUND` |
+| `DataIntegrityViolationException` | 409 | `CONFLICT` |
+| `UnauthorizedException` | 401 | `UNAUTHORIZED` |
+| `ForbiddenException` | 403 | `FORBIDDEN` |
+| Any other `Exception` | 500 | `INTERNAL_ERROR` |
+
+### Repository / stored procedure pattern
+
+All JDBC repositories call PostgreSQL stored procedures via `ConnectionCallback` + `CallableStatement`. Procedures that return a REFCURSOR require the caller service method to be annotated `@Transactional` so the CALL and FETCH share the same connection. See `database/procedures/README.md` for the full inventory.

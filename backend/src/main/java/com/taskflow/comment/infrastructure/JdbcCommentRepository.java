@@ -1,11 +1,17 @@
 package com.taskflow.comment.infrastructure;
 
 import com.taskflow.comment.domain.Comment;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.CallableStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Types;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Repository
@@ -18,29 +24,69 @@ public class JdbcCommentRepository {
     }
 
     public Comment save(long taskId, long authorId, String body) {
-        String sql = """
-                INSERT INTO comments (task_id, author_id, body)
-                VALUES (?, ?, ?)
-                RETURNING id, task_id, author_id, body, created_at, updated_at
-                """;
-        return jdbc.queryForObject(sql, rowMapper(), taskId, authorId, body);
+        return jdbc.execute((ConnectionCallback<Comment>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.SaveComment(?, ?, ?, ?)")) {
+                cs.setLong(1, taskId);
+                cs.setLong(2, authorId);
+                cs.setString(3, body);
+                cs.registerOutParameter(4, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(4), rowMapper()).get(0);
+            }
+        });
     }
 
+    /**
+     * Retrieves paginated comments via the GetCommentsTaskId stored procedure (V7).
+     * The CALL and FETCH must run on the same connection within the same transaction;
+     * CommentService.listComments is @Transactional(readOnly = true) to satisfy this.
+     */
     public List<Comment> findByTaskId(long taskId, int limit, int offset) {
-        String sql = """
-                SELECT id, task_id, author_id, body, created_at, updated_at
-                FROM comments
-                WHERE task_id = ?
-                ORDER BY created_at ASC
-                LIMIT ? OFFSET ?
-                """;
-        return jdbc.query(sql, rowMapper(), taskId, limit, offset);
+        if (limit <= 0 || offset < 0) {
+            throw new IllegalArgumentException(
+                    "Limit must be positive and offset must not be negative");
+        }
+        return jdbc.execute((ConnectionCallback<List<Comment>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetCommentsTaskId(?, ?, ?, ?)")) {
+                cs.setLong(1, taskId);
+                cs.setInt(2, limit);
+                cs.setInt(3, offset);
+                cs.registerOutParameter(4, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(4), rowMapper());
+            }
+        });
     }
 
     public long countByTaskId(long taskId) {
-        Long n = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM comments WHERE task_id = ?", Long.class, taskId);
-        return n != null ? n : 0L;
+        return jdbc.execute((ConnectionCallback<Long>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.CountCommentsByTaskId(?, ?)")) {
+                cs.setLong(1, taskId);
+                cs.setNull(2, Types.BIGINT);
+                cs.registerOutParameter(2, Types.BIGINT);
+                cs.execute();
+                return cs.getLong(2);
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Shared helpers
+    // -----------------------------------------------------------------------
+
+    private <T> List<T> fetchList(java.sql.Connection conn, String cursorName,
+                                   RowMapper<T> mapper) throws java.sql.SQLException {
+        try (Statement fetch = conn.createStatement();
+             ResultSet rs = fetch.executeQuery("FETCH ALL FROM \"" + cursorName + "\"")) {
+            List<T> results = new ArrayList<>();
+            while (rs.next()) {
+                results.add(mapper.mapRow(rs, results.size()));
+            }
+            return results;
+        }
     }
 
     private RowMapper<Comment> rowMapper() {

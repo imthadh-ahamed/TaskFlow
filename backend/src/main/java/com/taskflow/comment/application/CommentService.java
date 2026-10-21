@@ -13,10 +13,12 @@ import com.taskflow.membership.infrastructure.JdbcMemberRepository;
 import com.taskflow.task.domain.Task;
 import com.taskflow.task.infrastructure.JdbcTaskRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class CommentService {
 
     private final JdbcCommentRepository commentRepository;
@@ -39,6 +41,7 @@ public class CommentService {
         return toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public PageResponse<CommentResponse> listComments(long taskId, int page, int size, long callerId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));

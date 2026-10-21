@@ -22,87 +22,73 @@ import java.util.List;
 @RequestMapping("/api/v1/projects/{projectId}/members")
 class MemberController {
 
-    private final MemberService service;
+        private final MemberService service;
 
-    MemberController(MemberService service) {
-        this.service = service;
-    }
+        MemberController(MemberService service) {
+                this.service = service;
+        }
 
-    @Operation(summary = "Add a member to a project",
-               description = "Adds a user to the project with the given role. "
-                           + "Role must be MEMBER or VIEWER — OWNER is assigned only on project creation. "
-                           + "Requires OWNER role.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Member added"),
-            @ApiResponse(responseCode = "400", description = "Validation error",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Caller is not the project owner",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Project not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PostMapping
-    ResponseEntity<MemberResponse> add(
-            @PathVariable long projectId,
-            @Valid @RequestBody AddMemberRequest req) {
-        MemberResponse created = service.addMember(projectId, req, AuthenticatedUser.currentUserId());
-        URI location = ServletUriComponentsBuilder
-                .fromCurrentContextPath()
-                .path("/api/v1/projects/{projectId}/members/{userId}")
-                .buildAndExpand(projectId, created.userId())
-                .toUri();
-        return ResponseEntity.created(location).body(created);
-    }
+        // /api/v1/projects/{projectId}/members - Add a member to a project
+        @Operation(summary = "Add a member to a project", description = "Adds a user to the project with the given role. "
+                        + "Role must be MEMBER or VIEWER — OWNER is assigned only on project creation. "
+                        + "Requires OWNER role.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "201", description = "Member added"),
+                        @ApiResponse(responseCode = "400", description = "Validation error", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                        @ApiResponse(responseCode = "403", description = "Caller is not the project owner", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                        @ApiResponse(responseCode = "404", description = "Project not found", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+        })
+        @PostMapping
+        ResponseEntity<MemberResponse> add(
+                        @PathVariable long projectId,
+                        @Valid @RequestBody AddMemberRequest req) {
+                MemberResponse created = service.addMember(projectId, req, AuthenticatedUser.currentUserId());
+                URI location = ServletUriComponentsBuilder
+                                .fromCurrentContextPath()
+                                .path("/api/v1/projects/{projectId}/members/{userId}")
+                                .buildAndExpand(projectId, created.userId())
+                                .toUri();
+                return ResponseEntity.created(location).body(created);
+        }
 
-    @Operation(summary = "List all members of a project")
-    @ApiResponse(responseCode = "200", description = "Member list")
-    @GetMapping
-    ResponseEntity<List<MemberResponse>> list(@PathVariable long projectId) {
-        return ResponseEntity.ok(service.listMembers(projectId, AuthenticatedUser.currentUserId()));
-    }
+        // /api/v1/projects/{projectId}/members - List all members of a project
+        @Operation(summary = "List all members of a project")
+        @ApiResponse(responseCode = "200", description = "Member list")
+        @GetMapping
+        ResponseEntity<List<MemberResponse>> list(@PathVariable long projectId) {
+                return ResponseEntity.ok(service.listMembers(projectId, AuthenticatedUser.currentUserId()));
+        }
 
-    @Operation(summary = "Update a member's role",
-               description = "Changes an existing member's role to MEMBER or VIEWER. "
-                           + "The OWNER role cannot be transferred through this endpoint. Requires OWNER role.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Role updated"),
-            @ApiResponse(responseCode = "400", description = "Validation error",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Caller is not the project owner",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Member not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @PatchMapping("/{userId}")
-    ResponseEntity<MemberResponse> updateRole(
-            @PathVariable long projectId,
-            @PathVariable long userId,
-            @Valid @RequestBody UpdateMemberRoleRequest req) {
-        return ResponseEntity.ok(service.updateRole(projectId, userId, req, AuthenticatedUser.currentUserId()));
-    }
+        // /api/v1/projects/{projectId}/members/{userId} - Update a member's role
+        @Operation(summary = "Update a member's role", description = "Changes an existing member's role to MEMBER or VIEWER. "
+                        + "The OWNER role cannot be transferred through this endpoint. Requires OWNER role.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Role updated"),
+                        @ApiResponse(responseCode = "400", description = "Validation error", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                        @ApiResponse(responseCode = "403", description = "Caller is not the project owner", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                        @ApiResponse(responseCode = "404", description = "Member not found", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+        })
+        @PatchMapping("/{userId}")
+        ResponseEntity<MemberResponse> updateRole(
+                        @PathVariable long projectId,
+                        @PathVariable long userId,
+                        @Valid @RequestBody UpdateMemberRoleRequest req) {
+                return ResponseEntity.ok(service.updateRole(projectId, userId, req, AuthenticatedUser.currentUserId()));
+        }
 
-    @Operation(summary = "Remove a member from a project",
-               description = "Requires OWNER role.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Member removed"),
-            @ApiResponse(responseCode = "403", description = "Caller is not the project owner",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class))),
-            @ApiResponse(responseCode = "404", description = "Member not found",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = ErrorResponse.class)))
-    })
-    @DeleteMapping("/{userId}")
-    ResponseEntity<Void> remove(
-            @PathVariable long projectId,
-            @PathVariable long userId) {
-        service.removeMember(projectId, userId, AuthenticatedUser.currentUserId());
-        return ResponseEntity.noContent().build();
-    }
+        // /api/v1/projects/{projectId}/members/{userId} - Remove a member from a
+        // project
+        @Operation(summary = "Remove a member from a project", description = "Requires OWNER role.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "204", description = "Member removed"),
+                        @ApiResponse(responseCode = "403", description = "Caller is not the project owner", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                        @ApiResponse(responseCode = "404", description = "Member not found", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+        })
+        @DeleteMapping("/{userId}")
+        ResponseEntity<Void> remove(
+                        @PathVariable long projectId,
+                        @PathVariable long userId) {
+                service.removeMember(projectId, userId, AuthenticatedUser.currentUserId());
+                return ResponseEntity.noContent().build();
+        }
 }

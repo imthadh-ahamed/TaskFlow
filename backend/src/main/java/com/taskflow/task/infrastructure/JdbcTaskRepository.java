@@ -3,11 +3,16 @@ package com.taskflow.task.infrastructure;
 import com.taskflow.task.domain.Task;
 import com.taskflow.task.domain.TaskPriority;
 import com.taskflow.task.domain.TaskStatus;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.CallableStatement;
 import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -25,26 +30,35 @@ public class JdbcTaskRepository {
 
     public Task save(long projectId, String title, String description,
                      TaskPriority priority, Long assigneeId, LocalDate dueDate) {
-        String sql = """
-                INSERT INTO tasks (project_id, title, description, status, priority, assignee_id, due_date)
-                VALUES (?, ?, ?, 'todo', ?, ?, ?)
-                RETURNING id, project_id, assignee_id, title, description, status, priority,
-                          due_date, created_at, updated_at
-                """;
-        return jdbc.queryForObject(sql, rowMapper(),
-                projectId, title, description,
-                priority.name().toLowerCase(),
-                assigneeId,
-                dueDate != null ? Date.valueOf(dueDate) : null);
+        return jdbc.execute((ConnectionCallback<Task>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.SaveTask(?, ?, ?, ?, ?, ?, ?)")) {
+                cs.setLong(1, projectId);
+                cs.setString(2, title);
+                if (description != null) cs.setString(3, description);
+                else cs.setNull(3, Types.VARCHAR);
+                cs.setString(4, priority.name().toLowerCase());
+                if (assigneeId != null) cs.setLong(5, assigneeId);
+                else cs.setNull(5, Types.BIGINT);
+                if (dueDate != null) cs.setDate(6, Date.valueOf(dueDate));
+                else cs.setNull(6, Types.DATE);
+                cs.registerOutParameter(7, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(7), rowMapper()).get(0);
+            }
+        });
     }
 
     public Optional<Task> findById(long id) {
-        String sql = """
-                SELECT id, project_id, assignee_id, title, description, status, priority,
-                       due_date, created_at, updated_at
-                FROM tasks WHERE id = ?
-                """;
-        return jdbc.query(sql, rowMapper(), id).stream().findFirst();
+        return jdbc.execute((ConnectionCallback<Optional<Task>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetTaskById(?, ?)")) {
+                cs.setLong(1, id);
+                cs.registerOutParameter(2, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(2), rowMapper());
+            }
+        });
     }
 
     public List<Task> findByProjectId(long projectId,
@@ -52,130 +66,143 @@ public class JdbcTaskRepository {
                                       TaskPriority priorityFilter,
                                       Long assigneeIdFilter,
                                       int limit, int offset) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT id, project_id, assignee_id, title, description, status, priority,
-                       due_date, created_at, updated_at
-                FROM tasks WHERE project_id = ?
-                """);
-        List<Object> params = new ArrayList<>();
-        params.add(projectId);
-        appendFilters(sql, params, statusFilter, priorityFilter, assigneeIdFilter);
-        sql.append(" ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?");
-        params.add(limit);
-        params.add(offset);
-        return jdbc.query(sql.toString(), rowMapper(), params.toArray());
+        return jdbc.execute((ConnectionCallback<List<Task>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetTasksByProjectId(?, ?, ?, ?, ?, ?, ?)")) {
+                cs.setLong(1, projectId);
+                setNullableString(cs, 2, statusFilter != null ? statusFilter.name().toLowerCase() : null);
+                setNullableString(cs, 3, priorityFilter != null ? priorityFilter.name().toLowerCase() : null);
+                setNullableLong(cs, 4, assigneeIdFilter);
+                cs.setInt(5, limit);
+                cs.setInt(6, offset);
+                cs.registerOutParameter(7, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(7), rowMapper());
+            }
+        });
     }
 
     public long countByProjectId(long projectId,
                                  TaskStatus statusFilter,
                                  TaskPriority priorityFilter,
                                  Long assigneeIdFilter) {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM tasks WHERE project_id = ?");
-        List<Object> params = new ArrayList<>();
-        params.add(projectId);
-        appendFilters(sql, params, statusFilter, priorityFilter, assigneeIdFilter);
-        Long n = jdbc.queryForObject(sql.toString(), Long.class, params.toArray());
-        return n != null ? n : 0L;
+        return jdbc.execute((ConnectionCallback<Long>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.CountTasksByProjectId(?, ?, ?, ?, ?)")) {
+                cs.setLong(1, projectId);
+                setNullableString(cs, 2, statusFilter != null ? statusFilter.name().toLowerCase() : null);
+                setNullableString(cs, 3, priorityFilter != null ? priorityFilter.name().toLowerCase() : null);
+                setNullableLong(cs, 4, assigneeIdFilter);
+                cs.setNull(5, Types.BIGINT);
+                cs.registerOutParameter(5, Types.BIGINT);
+                cs.execute();
+                return cs.getLong(5);
+            }
+        });
     }
 
     public Optional<Task> update(long id, String title, String description,
                                  TaskPriority priority, Long assigneeId,
                                  boolean clearAssignee, LocalDate dueDate,
                                  boolean clearDueDate) {
-        String sql = """
-                UPDATE tasks
-                SET title       = ?,
-                    description = ?,
-                    priority    = ?,
-                    assignee_id = ?,
-                    due_date    = ?,
-                    updated_at  = now()
-                WHERE id = ?
-                RETURNING id, project_id, assignee_id, title, description, status, priority,
-                          due_date, created_at, updated_at
-                """;
-        Long newAssigneeId = clearAssignee ? null : assigneeId;
-        Date newDueDate = clearDueDate ? null : (dueDate != null ? Date.valueOf(dueDate) : null);
-        return jdbc.query(sql, rowMapper(),
-                title, description, priority.name().toLowerCase(),
-                newAssigneeId, newDueDate, id)
-                .stream().findFirst();
+        Long resolvedAssigneeId = clearAssignee ? null : assigneeId;
+        Date resolvedDueDate   = clearDueDate   ? null : (dueDate != null ? Date.valueOf(dueDate) : null);
+        return jdbc.execute((ConnectionCallback<Optional<Task>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.UpdateTask(?, ?, ?, ?, ?, ?, ?)")) {
+                cs.setLong(1, id);
+                cs.setString(2, title);
+                if (description != null) cs.setString(3, description);
+                else cs.setNull(3, Types.VARCHAR);
+                cs.setString(4, priority.name().toLowerCase());
+                setNullableLong(cs, 5, resolvedAssigneeId);
+                if (resolvedDueDate != null) cs.setDate(6, resolvedDueDate);
+                else cs.setNull(6, Types.DATE);
+                cs.registerOutParameter(7, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(7), rowMapper());
+            }
+        });
     }
 
     public Optional<Task> updateStatus(long id, TaskStatus status) {
-        String sql = """
-                UPDATE tasks
-                SET status = ?, updated_at = now()
-                WHERE id = ?
-                RETURNING id, project_id, assignee_id, title, description, status, priority,
-                          due_date, created_at, updated_at
-                """;
-        return jdbc.query(sql, rowMapper(), status.name().toLowerCase(), id)
-                .stream().findFirst();
+        return jdbc.execute((ConnectionCallback<Optional<Task>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.UpdateTaskStatus(?, ?, ?)")) {
+                cs.setLong(1, id);
+                cs.setString(2, status.name().toLowerCase());
+                cs.registerOutParameter(3, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(3), rowMapper());
+            }
+        });
     }
 
-    /**
-     * Fetches a page of tasks for a project, LEFT JOINed with {@code users} so the
-     * assignee's {@code display_name} is returned in the same query.
-     *
-     * <p><b>N+1 avoided:</b> a naive implementation would call
-     * {@code findByProjectId()} for N tasks and then issue N individual
-     * {@code SELECT display_name FROM users WHERE id = ?} queries — one per
-     * assigned task.  This method collapses those N+1 round-trips into a
-     * single SQL statement regardless of how many tasks have assignees.
-     */
     public List<TaskWithAssignee> findByProjectIdWithAssignee(long projectId,
                                                                TaskStatus statusFilter,
                                                                TaskPriority priorityFilter,
                                                                Long assigneeIdFilter,
                                                                int limit, int offset) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT t.id, t.project_id, t.assignee_id,
-                       t.title, t.description, t.status, t.priority,
-                       t.due_date, t.created_at, t.updated_at,
-                       u.display_name AS assignee_name
-                FROM tasks t
-                LEFT JOIN users u ON u.id = t.assignee_id
-                WHERE t.project_id = ?
-                """);
-        List<Object> params = new ArrayList<>();
-        params.add(projectId);
-        appendFilters(sql, params, statusFilter, priorityFilter, assigneeIdFilter);
-        sql.append(" ORDER BY t.created_at DESC, t.id DESC LIMIT ? OFFSET ?");
-        params.add(limit);
-        params.add(offset);
-        return jdbc.query(sql.toString(), enrichedRowMapper(), params.toArray());
+        return jdbc.execute((ConnectionCallback<List<TaskWithAssignee>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetTasksByProjectIdWithAssignee(?, ?, ?, ?, ?, ?, ?)")) {
+                cs.setLong(1, projectId);
+                setNullableString(cs, 2, statusFilter != null ? statusFilter.name().toLowerCase() : null);
+                setNullableString(cs, 3, priorityFilter != null ? priorityFilter.name().toLowerCase() : null);
+                setNullableLong(cs, 4, assigneeIdFilter);
+                cs.setInt(5, limit);
+                cs.setInt(6, offset);
+                cs.registerOutParameter(7, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(7), enrichedRowMapper());
+            }
+        });
     }
 
-    /** Single-task variant of {@link #findByProjectIdWithAssignee}: avoids a follow-up user lookup. */
     public Optional<TaskWithAssignee> findByIdWithAssignee(long id) {
-        String sql = """
-                SELECT t.id, t.project_id, t.assignee_id,
-                       t.title, t.description, t.status, t.priority,
-                       t.due_date, t.created_at, t.updated_at,
-                       u.display_name AS assignee_name
-                FROM tasks t
-                LEFT JOIN users u ON u.id = t.assignee_id
-                WHERE t.id = ?
-                """;
-        return jdbc.query(sql, enrichedRowMapper(), id).stream().findFirst();
+        return jdbc.execute((ConnectionCallback<Optional<TaskWithAssignee>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetTaskByIdWithAssignee(?, ?)")) {
+                cs.setLong(1, id);
+                cs.registerOutParameter(2, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(2), enrichedRowMapper());
+            }
+        });
     }
 
-    private void appendFilters(StringBuilder sql, List<Object> params,
-                                TaskStatus statusFilter, TaskPriority priorityFilter,
-                                Long assigneeIdFilter) {
-        if (statusFilter != null) {
-            sql.append(" AND status = ?");
-            params.add(statusFilter.name().toLowerCase());
+    // -----------------------------------------------------------------------
+    // Shared helpers
+    // -----------------------------------------------------------------------
+
+    private static void setNullableString(CallableStatement cs, int idx, String value)
+            throws java.sql.SQLException {
+        if (value != null) cs.setString(idx, value);
+        else cs.setNull(idx, Types.VARCHAR);
+    }
+
+    private static void setNullableLong(CallableStatement cs, int idx, Long value)
+            throws java.sql.SQLException {
+        if (value != null) cs.setLong(idx, value);
+        else cs.setNull(idx, Types.BIGINT);
+    }
+
+    private <T> List<T> fetchList(java.sql.Connection conn, String cursorName,
+                                   RowMapper<T> mapper) throws java.sql.SQLException {
+        try (Statement fetch = conn.createStatement();
+             ResultSet rs = fetch.executeQuery("FETCH ALL FROM \"" + cursorName + "\"")) {
+            List<T> results = new ArrayList<>();
+            while (rs.next()) {
+                results.add(mapper.mapRow(rs, results.size()));
+            }
+            return results;
         }
-        if (priorityFilter != null) {
-            sql.append(" AND priority = ?");
-            params.add(priorityFilter.name().toLowerCase());
-        }
-        if (assigneeIdFilter != null) {
-            sql.append(" AND assignee_id = ?");
-            params.add(assigneeIdFilter);
-        }
+    }
+
+    private <T> Optional<T> fetchOptional(java.sql.Connection conn, String cursorName,
+                                           RowMapper<T> mapper) throws java.sql.SQLException {
+        List<T> rows = fetchList(conn, cursorName, mapper);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
     private RowMapper<Task> rowMapper() {

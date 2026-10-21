@@ -1,14 +1,18 @@
 package com.taskflow.project.infrastructure;
 
 import com.taskflow.project.domain.Project;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 import java.sql.CallableStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,26 +26,17 @@ public class JdbcProjectRepository {
     }
 
     /**
-     * Creates a project and its owner membership atomically by calling the
-     * {@code create_project_with_owner} stored procedure (V6 migration).
-     * The procedure inserts into {@code projects} and {@code project_members}
-     * in a single PL/pgSQL block; if either insert fails the whole operation
-     * rolls back.
+     * Creates a project and its owner membership atomically via the
+     * create_project_with_owner stored procedure (V6 migration).
      */
     public Project save(long ownerId, String name, String description) {
-        return jdbc.execute((java.sql.Connection conn) -> {
+        return jdbc.execute((ConnectionCallback<Project>) conn -> {
             try (CallableStatement cs = conn.prepareCall(
                     "CALL public.create_project_with_owner(?, ?, ?, ?, ?, ?)")) {
                 cs.setLong(1, ownerId);
                 cs.setString(2, name);
-                if (description != null) {
-                    cs.setString(3, description);
-                } else {
-                    cs.setNull(3, Types.VARCHAR);
-                }
-                // INOUT parameters: set initial null value, register as OUT.
-                // PostgreSQL JDBC reports timestamptz as Types.TIMESTAMP (93) in CALL
-                // statements, not as TIMESTAMP_WITH_TIMEZONE (2014).
+                if (description != null) cs.setString(3, description);
+                else cs.setNull(3, Types.VARCHAR);
                 cs.setNull(4, Types.BIGINT);
                 cs.registerOutParameter(4, Types.BIGINT);
                 cs.setNull(5, Types.TIMESTAMP);
@@ -59,60 +54,117 @@ public class JdbcProjectRepository {
     }
 
     public Optional<Project> findById(long id) {
-        String sql = """
-                SELECT id, owner_id, name, description, created_at, updated_at
-                FROM projects
-                WHERE id = ?
-                """;
-        return jdbc.query(sql, rowMapper(), id).stream().findFirst();
+        return jdbc.execute((ConnectionCallback<Optional<Project>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetProjectById(?, ?)")) {
+                cs.setLong(1, id);
+                cs.registerOutParameter(2, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(2), rowMapper());
+            }
+        });
     }
 
     public List<Project> findAll(int limit, int offset) {
-        String sql = """
-                SELECT id, owner_id, name, description, created_at, updated_at
-                FROM projects
-                ORDER BY created_at DESC, id DESC
-                LIMIT ? OFFSET ?
-                """;
-        return jdbc.query(sql, rowMapper(), limit, offset);
+        return jdbc.execute((ConnectionCallback<List<Project>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetAllProjects(?, ?, ?)")) {
+                cs.setInt(1, limit);
+                cs.setInt(2, offset);
+                cs.registerOutParameter(3, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(3), rowMapper());
+            }
+        });
     }
 
     public List<Project> findByMemberId(long userId, int limit, int offset) {
-        String sql = """
-                SELECT p.id, p.owner_id, p.name, p.description, p.created_at, p.updated_at
-                FROM projects p
-                JOIN project_members pm ON pm.project_id = p.id
-                WHERE pm.user_id = ?
-                ORDER BY p.created_at DESC, p.id DESC
-                LIMIT ? OFFSET ?
-                """;
-        return jdbc.query(sql, rowMapper(), userId, limit, offset);
+        return jdbc.execute((ConnectionCallback<List<Project>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.GetProjectsByMemberId(?, ?, ?, ?)")) {
+                cs.setLong(1, userId);
+                cs.setInt(2, limit);
+                cs.setInt(3, offset);
+                cs.registerOutParameter(4, Types.OTHER);
+                cs.execute();
+                return fetchList(conn, cs.getString(4), rowMapper());
+            }
+        });
     }
 
     public long countByMemberId(long userId) {
-        Long n = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM projects p JOIN project_members pm ON pm.project_id = p.id WHERE pm.user_id = ?",
-                Long.class, userId);
-        return n != null ? n : 0L;
+        return jdbc.execute((ConnectionCallback<Long>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.CountProjectsByMemberId(?, ?)")) {
+                cs.setLong(1, userId);
+                cs.setNull(2, Types.BIGINT);
+                cs.registerOutParameter(2, Types.BIGINT);
+                cs.execute();
+                return cs.getLong(2);
+            }
+        });
     }
 
     public long count() {
-        Long n = jdbc.queryForObject("SELECT COUNT(*) FROM projects", Long.class);
-        return n != null ? n : 0L;
+        return jdbc.execute((ConnectionCallback<Long>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.CountAllProjects(?)")) {
+                cs.setNull(1, Types.BIGINT);
+                cs.registerOutParameter(1, Types.BIGINT);
+                cs.execute();
+                return cs.getLong(1);
+            }
+        });
     }
 
     public Optional<Project> update(long id, String name, String description) {
-        String sql = """
-                UPDATE projects
-                SET name = ?, description = ?, updated_at = now()
-                WHERE id = ?
-                RETURNING id, owner_id, name, description, created_at, updated_at
-                """;
-        return jdbc.query(sql, rowMapper(), name, description, id).stream().findFirst();
+        return jdbc.execute((ConnectionCallback<Optional<Project>>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.UpdateProject(?, ?, ?, ?)")) {
+                cs.setLong(1, id);
+                cs.setString(2, name);
+                if (description != null) cs.setString(3, description);
+                else cs.setNull(3, Types.VARCHAR);
+                cs.registerOutParameter(4, Types.OTHER);
+                cs.execute();
+                return fetchOptional(conn, cs.getString(4), rowMapper());
+            }
+        });
     }
 
     public boolean deleteById(long id) {
-        return jdbc.update("DELETE FROM projects WHERE id = ?", id) > 0;
+        return jdbc.execute((ConnectionCallback<Boolean>) conn -> {
+            try (CallableStatement cs = conn.prepareCall(
+                    "CALL public.DeleteProject(?, ?)")) {
+                cs.setLong(1, id);
+                cs.setNull(2, Types.BIGINT);
+                cs.registerOutParameter(2, Types.BIGINT);
+                cs.execute();
+                return cs.getLong(2) > 0;
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Shared helpers
+    // -----------------------------------------------------------------------
+
+    private <T> List<T> fetchList(java.sql.Connection conn, String cursorName,
+                                   RowMapper<T> mapper) throws java.sql.SQLException {
+        try (Statement fetch = conn.createStatement();
+             ResultSet rs = fetch.executeQuery("FETCH ALL FROM \"" + cursorName + "\"")) {
+            List<T> results = new ArrayList<>();
+            while (rs.next()) {
+                results.add(mapper.mapRow(rs, results.size()));
+            }
+            return results;
+        }
+    }
+
+    private <T> Optional<T> fetchOptional(java.sql.Connection conn, String cursorName,
+                                           RowMapper<T> mapper) throws java.sql.SQLException {
+        List<T> rows = fetchList(conn, cursorName, mapper);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
     private RowMapper<Project> rowMapper() {

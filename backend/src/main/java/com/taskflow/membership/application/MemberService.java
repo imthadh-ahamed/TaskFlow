@@ -10,10 +10,12 @@ import com.taskflow.membership.domain.ProjectMember;
 import com.taskflow.membership.infrastructure.JdbcMemberRepository;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
+@Transactional
 public class MemberService {
 
     private final JdbcMemberRepository memberRepository;
