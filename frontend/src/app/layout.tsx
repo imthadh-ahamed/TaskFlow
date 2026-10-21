@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import NavBar from "@/components/layout/NavBar";
 import "./globals.css";
@@ -31,7 +32,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to main content
         </a>
-        <NavBar />
+        {/* Suspense lets usePathname() stream in without blocking static prerendering */}
+        <Suspense
+          fallback={
+            <div className="sticky top-0 z-10 h-14 border-b border-zinc-200 bg-background dark:border-zinc-800" />
+          }
+        >
+          <NavBar />
+        </Suspense>
         <main id="main-content" className="flex flex-1 flex-col">
           {children}
         </main>
