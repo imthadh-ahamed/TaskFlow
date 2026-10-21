@@ -223,6 +223,18 @@ mvnw.cmd spring-boot:run
 
 ---
 
+## Authentication design
+
+The JWT + HttpOnly cookie authentication contract is documented in [`docs/auth-design-adr.md`](docs/auth-design-adr.md). Read it before working on any auth-related task (T9.x). Key points:
+
+- Access tokens: 15 min, `tf_access` cookie, `Path=/api`
+- Refresh tokens: 7 days, `tf_refresh` cookie, `Path=/api/v1/auth/refresh`
+- Both cookies: `HttpOnly; SameSite=Strict; Secure` (production)
+- Frontend JS never reads token values; all requests use `credentials: "include"`
+- CSRF mitigation: `SameSite=Strict` + `Origin` header validation
+
+---
+
 ## Git rules
 
 - One Git repository at the `TaskFlow/` root.
