@@ -1,5 +1,6 @@
 package com.taskflow.task.application;
 
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.common.api.PageResponse;
 import com.taskflow.membership.domain.MemberRole;
@@ -46,6 +47,10 @@ class TaskServiceTest {
 
     private ProjectMember ownerMember() {
         return new ProjectMember(1L, 1L, MemberRole.OWNER, Instant.EPOCH);
+    }
+
+    private ProjectMember viewerMember() {
+        return new ProjectMember(1L, 2L, MemberRole.VIEWER, Instant.EPOCH);
     }
 
     // --- createTask ---
@@ -194,5 +199,79 @@ class TaskServiceTest {
                         new UpdateTaskStatusRequest(TaskStatus.DONE), 1L))
                 .withMessageContaining("TODO")
                 .withMessageContaining("DONE");
+    }
+
+    // --- access control ---
+
+    @Test
+    void createTask_throws_when_caller_is_viewer() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, 2L)).thenReturn(Optional.of(viewerMember()));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.createTask(1L,
+                        new CreateTaskRequest("Fix bug", null, null, null, null), 2L));
+    }
+
+    @Test
+    void updateTask_throws_when_caller_is_viewer() {
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask(1L, TaskStatus.TODO)));
+        when(memberRepository.findByProjectAndUser(1L, 2L)).thenReturn(Optional.of(viewerMember()));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.updateTask(1L,
+                        new UpdateTaskRequest("New title", null, null, null, false, null), 2L));
+    }
+
+    @Test
+    void updateStatus_throws_when_caller_is_viewer() {
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask(1L, TaskStatus.TODO)));
+        when(memberRepository.findByProjectAndUser(1L, 2L)).thenReturn(Optional.of(viewerMember()));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.updateStatus(1L,
+                        new UpdateTaskStatusRequest(TaskStatus.IN_PROGRESS), 2L));
+    }
+
+    // --- field update rules ---
+
+    @Test
+    void updateTask_clears_assignee_when_clearAssignee_is_true() {
+        Task existing = new Task(1L, 1L, 5L, "Fix", null,
+                TaskStatus.TODO, TaskPriority.MEDIUM, null, Instant.EPOCH, Instant.EPOCH);
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
+        when(taskRepository.update(anyLong(), anyString(), any(), any(),
+                isNull(), eq(true), any(), anyBoolean()))
+                .thenReturn(Optional.of(sampleTask(1L, TaskStatus.TODO)));
+
+        service.updateTask(1L,
+                new UpdateTaskRequest(null, null, null, null, true, null), 1L);
+
+        verify(taskRepository).update(eq(1L), anyString(), any(), any(),
+                isNull(), eq(true), any(), anyBoolean());
+    }
+
+    @Test
+    void updateTask_rejects_title_exceeding_255_chars() {
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask(1L, TaskStatus.TODO)));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
+
+        String longTitle = "a".repeat(256);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.updateTask(1L,
+                        new UpdateTaskRequest(longTitle, null, null, null, false, null), 1L))
+                .withMessageContaining("255");
+    }
+
+    @Test
+    void createTask_rejects_invalid_due_date_format() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember()));
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.createTask(1L,
+                        new CreateTaskRequest("Fix", null, null, null, "not-a-date"), 1L))
+                .withMessageContaining("yyyy-MM-dd");
     }
 }

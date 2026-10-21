@@ -4,6 +4,7 @@ import com.taskflow.comment.api.CommentResponse;
 import com.taskflow.comment.api.CreateCommentRequest;
 import com.taskflow.comment.domain.Comment;
 import com.taskflow.comment.infrastructure.JdbcCommentRepository;
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.common.api.PageResponse;
 import com.taskflow.membership.domain.MemberRole;
@@ -46,6 +47,10 @@ class CommentServiceTest {
 
     private ProjectMember ownerMember() {
         return new ProjectMember(1L, 1L, MemberRole.OWNER, Instant.EPOCH);
+    }
+
+    private ProjectMember viewerMember() {
+        return new ProjectMember(1L, 2L, MemberRole.VIEWER, Instant.EPOCH);
     }
 
     // --- createComment ---
@@ -107,5 +112,26 @@ class CommentServiceTest {
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.listComments(99L, 0, 20, 1L));
+    }
+
+    // --- access control ---
+
+    @Test
+    void createComment_throws_when_caller_is_viewer() {
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask()));
+        when(memberRepository.findByProjectAndUser(1L, 2L)).thenReturn(Optional.of(viewerMember()));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.createComment(1L,
+                        new CreateCommentRequest("body"), 2L));
+    }
+
+    @Test
+    void listComments_throws_when_caller_not_a_member() {
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(sampleTask()));
+        when(memberRepository.findByProjectAndUser(1L, 99L)).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.listComments(1L, 0, 20, 99L));
     }
 }

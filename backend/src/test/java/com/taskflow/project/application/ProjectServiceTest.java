@@ -1,5 +1,6 @@
 package com.taskflow.project.application;
 
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.common.api.PageResponse;
 import com.taskflow.membership.domain.MemberRole;
@@ -162,5 +163,62 @@ class ProjectServiceTest {
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.deleteProject(99L, 1L));
+    }
+
+    // --- access control ---
+
+    @Test
+    void getProject_throws_when_caller_not_a_member() {
+        when(repository.findById(1L)).thenReturn(Optional.of(sampleProject(1L)));
+        when(memberRepository.findByProjectAndUser(1L, 99L)).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.getProject(1L, 99L));
+    }
+
+    @Test
+    void updateProject_throws_when_caller_is_not_owner() {
+        when(repository.findById(1L)).thenReturn(Optional.of(sampleProject(1L)));
+        when(memberRepository.findByProjectAndUser(1L, 2L))
+                .thenReturn(Optional.of(new ProjectMember(1L, 2L, MemberRole.MEMBER, Instant.EPOCH)));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.updateProject(1L, new UpdateProjectRequest("New", null), 2L));
+    }
+
+    @Test
+    void deleteProject_throws_when_caller_is_not_owner() {
+        when(repository.findById(1L)).thenReturn(Optional.of(sampleProject(1L)));
+        when(memberRepository.findByProjectAndUser(1L, 2L))
+                .thenReturn(Optional.of(new ProjectMember(1L, 2L, MemberRole.MEMBER, Instant.EPOCH)));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.deleteProject(1L, 2L));
+    }
+
+    // --- name validation ---
+
+    @Test
+    void updateProject_rejects_name_exceeding_200_chars() {
+        when(repository.findById(1L)).thenReturn(Optional.of(sampleProject(1L)));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember(1L)));
+
+        String longName = "a".repeat(201);
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> service.updateProject(1L, new UpdateProjectRequest(longName, null), 1L))
+                .withMessageContaining("200");
+    }
+
+    @Test
+    void updateProject_preserves_existing_name_when_name_is_null() {
+        Project existing = sampleProject(1L);
+        Project updated = sampleProject(1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(memberRepository.findByProjectAndUser(1L, 1L)).thenReturn(Optional.of(ownerMember(1L)));
+        when(repository.update(1L, "Alpha", "desc")).thenReturn(Optional.of(updated));
+
+        service.updateProject(1L, new UpdateProjectRequest(null, null), 1L);
+
+        verify(repository).update(1L, "Alpha", "desc");
     }
 }

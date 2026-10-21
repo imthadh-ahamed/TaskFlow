@@ -1,5 +1,6 @@
 package com.taskflow.membership.application;
 
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.membership.api.AddMemberRequest;
 import com.taskflow.membership.api.MemberResponse;
@@ -169,5 +170,27 @@ class MemberServiceTest {
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.removeMember(1L, 99L, OWNER_ID));
+    }
+
+    // --- access control ---
+
+    @Test
+    void addMember_throws_when_caller_is_not_owner() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID))
+                .thenReturn(Optional.of(member(OWNER_ID, MemberRole.MEMBER)));
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.addMember(1L,
+                        new AddMemberRequest(5L, MemberRole.MEMBER), OWNER_ID));
+    }
+
+    @Test
+    void listMembers_throws_when_caller_not_in_project() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, 99L)).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(ForbiddenException.class)
+                .isThrownBy(() -> service.listMembers(1L, 99L));
     }
 }
