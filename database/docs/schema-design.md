@@ -158,14 +158,39 @@ All timestamps use `timestamptz` (timestamp with time zone), stored in UTC. The 
 
 ---
 
+## Authentication additions (T9.2)
+
+### `users` — additional columns (V3)
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `password_hash` | `text` | `NOT NULL` | BCrypt hash; raw password never stored |
+| `role` | `text` | `NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin'))` | Authorization role |
+
+### `refresh_tokens` (V4)
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| `jti` | `uuid` | `PRIMARY KEY` | JWT ID claim — token identifier, not raw token value |
+| `family_id` | `uuid` | `NOT NULL` | Groups tokens from one login session for reuse-attack revocation |
+| `user_id` | `bigint` | `NOT NULL REFERENCES users(id) ON DELETE CASCADE` | |
+| `revoked` | `boolean` | `NOT NULL DEFAULT false` | Explicit revocation flag; row is kept for audit trail |
+| `replaced_by_jti` | `uuid` | `REFERENCES refresh_tokens(jti) ON DELETE SET NULL` | Successor jti after rotation; null while token is active |
+| `expires_at` | `timestamptz` | `NOT NULL` | Allows expiry-based cleanup without JWT parsing |
+| `created_at` | `timestamptz` | `NOT NULL DEFAULT now()` | |
+
+Indexes: `idx_refresh_tokens_user_id`, `idx_refresh_tokens_family_id`, `idx_refresh_tokens_expires_at` (partial: `WHERE revoked = false`).
+
+See `docs/auth-design-adr.md` for the full rotation and reuse-detection contract.
+
+---
+
 ## Out of Scope
 
 The following tables are explicitly deferred:
 
 | Entity | Deferred to |
 |--------|------------|
-| `comments` | Comments phase |
 | `notifications` | Notifications phase |
 | `audit_log` | Audit/compliance phase |
 | `outbox` | Event-driven messaging phase |
-| `password_hash` column on `users` | Authentication phase (T6.x) |
