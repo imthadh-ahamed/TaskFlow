@@ -2,6 +2,7 @@ package com.taskflow.task.api;
 
 import com.taskflow.common.api.ErrorResponse;
 import com.taskflow.common.api.PageResponse;
+import com.taskflow.common.security.AuthenticatedUser;
 import com.taskflow.task.application.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,6 +38,9 @@ class TaskController {
             @ApiResponse(responseCode = "400", description = "Validation error",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Not a writable member of this project",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Project not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
@@ -45,7 +49,7 @@ class TaskController {
     ResponseEntity<TaskResponse> create(
             @PathVariable long projectId,
             @Valid @RequestBody CreateTaskRequest req) {
-        TaskResponse created = service.createTask(projectId, req);
+        TaskResponse created = service.createTask(projectId, req, AuthenticatedUser.currentUserId());
         URI location = ServletUriComponentsBuilder
                 .fromCurrentContextPath()
                 .path("/api/v1/tasks/{id}")
@@ -71,19 +75,23 @@ class TaskController {
             @Parameter(description = "Page size (1–100)", example = "20")
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         return ResponseEntity.ok(
-                service.listTasks(projectId, status, priority, assigneeId, page, size));
+                service.listTasks(projectId, status, priority, assigneeId, page, size,
+                        AuthenticatedUser.currentUserId()));
     }
 
     @Operation(summary = "Get a task by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Task found"),
+            @ApiResponse(responseCode = "403", description = "Not a member of this task's project",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Task not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/api/v1/tasks/{taskId}")
     ResponseEntity<TaskResponse> getOne(@PathVariable long taskId) {
-        return ResponseEntity.ok(service.getTask(taskId));
+        return ResponseEntity.ok(service.getTask(taskId, AuthenticatedUser.currentUserId()));
     }
 
     @Operation(summary = "Update a task",
@@ -91,6 +99,9 @@ class TaskController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Task updated"),
             @ApiResponse(responseCode = "400", description = "Validation error",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Not a writable member of this task's project",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Task not found",
@@ -101,7 +112,7 @@ class TaskController {
     ResponseEntity<TaskResponse> update(
             @PathVariable long taskId,
             @Valid @RequestBody UpdateTaskRequest req) {
-        return ResponseEntity.ok(service.updateTask(taskId, req));
+        return ResponseEntity.ok(service.updateTask(taskId, req, AuthenticatedUser.currentUserId()));
     }
 
     @Operation(summary = "Move a task to a new status",
@@ -112,6 +123,9 @@ class TaskController {
             @ApiResponse(responseCode = "400", description = "Invalid status value",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Not a writable member of this task's project",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Task not found",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
@@ -120,6 +134,6 @@ class TaskController {
     ResponseEntity<TaskResponse> updateStatus(
             @PathVariable long taskId,
             @Valid @RequestBody UpdateTaskStatusRequest req) {
-        return ResponseEntity.ok(service.updateStatus(taskId, req));
+        return ResponseEntity.ok(service.updateStatus(taskId, req, AuthenticatedUser.currentUserId()));
     }
 }

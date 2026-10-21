@@ -1,9 +1,10 @@
 package com.taskflow.membership.api;
 
 import com.taskflow.auth.application.JwtService;
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
-import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.GlobalExceptionHandler;
+import com.taskflow.common.security.WithAuthenticatedUser;
 import com.taskflow.membership.application.MemberService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +20,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WithMockUser
+@WithAuthenticatedUser
 @WebMvcTest({MemberController.class, GlobalExceptionHandler.class})
 class MemberControllerTest {
 
@@ -35,7 +36,7 @@ class MemberControllerTest {
 
     @Test
     void add_returns_201() throws Exception {
-        when(service.addMember(eq(1L), any())).thenReturn(sampleMember(5L, "member"));
+        when(service.addMember(eq(1L), any(), eq(1L))).thenReturn(sampleMember(5L, "member"));
 
         mvc.perform(post("/api/v1/projects/1/members")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -71,7 +72,7 @@ class MemberControllerTest {
 
     @Test
     void add_returns_400_when_service_rejects_owner_role() throws Exception {
-        when(service.addMember(eq(1L), any()))
+        when(service.addMember(eq(1L), any(), eq(1L)))
                 .thenThrow(new IllegalArgumentException("Cannot assign role OWNER via API"));
 
         mvc.perform(post("/api/v1/projects/1/members")
@@ -84,8 +85,21 @@ class MemberControllerTest {
     }
 
     @Test
+    void add_returns_403_when_not_owner() throws Exception {
+        when(service.addMember(eq(1L), any(), eq(1L))).thenThrow(new ForbiddenException());
+
+        mvc.perform(post("/api/v1/projects/1/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":5,"role":"MEMBER"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void add_returns_404_when_project_not_found() throws Exception {
-        when(service.addMember(eq(99L), any()))
+        when(service.addMember(eq(99L), any(), eq(1L)))
                 .thenThrow(new ResourceNotFoundException("Project 99 not found"));
 
         mvc.perform(post("/api/v1/projects/99/members")
@@ -101,7 +115,7 @@ class MemberControllerTest {
 
     @Test
     void list_returns_member_list() throws Exception {
-        when(service.listMembers(1L)).thenReturn(
+        when(service.listMembers(1L, 1L)).thenReturn(
                 List.of(sampleMember(10L, "owner"), sampleMember(5L, "member")));
 
         mvc.perform(get("/api/v1/projects/1/members"))
@@ -114,7 +128,7 @@ class MemberControllerTest {
 
     @Test
     void updateRole_returns_200() throws Exception {
-        when(service.updateRole(eq(1L), eq(5L), any()))
+        when(service.updateRole(eq(1L), eq(5L), any(), eq(1L)))
                 .thenReturn(sampleMember(5L, "viewer"));
 
         mvc.perform(patch("/api/v1/projects/1/members/5")
@@ -128,7 +142,7 @@ class MemberControllerTest {
 
     @Test
     void updateRole_returns_400_when_modifying_owner() throws Exception {
-        when(service.updateRole(eq(1L), eq(10L), any()))
+        when(service.updateRole(eq(1L), eq(10L), any(), eq(1L)))
                 .thenThrow(new IllegalArgumentException("Cannot change the owner's role"));
 
         mvc.perform(patch("/api/v1/projects/1/members/10")
@@ -142,7 +156,7 @@ class MemberControllerTest {
 
     @Test
     void updateRole_returns_404_when_member_not_found() throws Exception {
-        when(service.updateRole(eq(1L), eq(99L), any()))
+        when(service.updateRole(eq(1L), eq(99L), any(), eq(1L)))
                 .thenThrow(new ResourceNotFoundException("Member 99 not found in project 1"));
 
         mvc.perform(patch("/api/v1/projects/1/members/99")
@@ -158,7 +172,7 @@ class MemberControllerTest {
 
     @Test
     void remove_returns_204() throws Exception {
-        doNothing().when(service).removeMember(1L, 5L);
+        doNothing().when(service).removeMember(1L, 5L, 1L);
 
         mvc.perform(delete("/api/v1/projects/1/members/5"))
                 .andExpect(status().isNoContent());
@@ -167,7 +181,7 @@ class MemberControllerTest {
     @Test
     void remove_returns_400_when_removing_owner() throws Exception {
         doThrow(new IllegalArgumentException("Cannot remove the project owner"))
-                .when(service).removeMember(1L, 10L);
+                .when(service).removeMember(1L, 10L, 1L);
 
         mvc.perform(delete("/api/v1/projects/1/members/10"))
                 .andExpect(status().isBadRequest())
@@ -177,7 +191,7 @@ class MemberControllerTest {
     @Test
     void remove_returns_404_when_member_not_found() throws Exception {
         doThrow(new ResourceNotFoundException("Member 99 not found in project 1"))
-                .when(service).removeMember(1L, 99L);
+                .when(service).removeMember(1L, 99L, 1L);
 
         mvc.perform(delete("/api/v1/projects/1/members/99"))
                 .andExpect(status().isNotFound());

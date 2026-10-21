@@ -1,7 +1,11 @@
 package com.taskflow.task.application;
 
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.common.api.PageResponse;
+import com.taskflow.membership.domain.MemberRole;
+import com.taskflow.membership.domain.ProjectMember;
+import com.taskflow.membership.infrastructure.JdbcMemberRepository;
 import com.taskflow.project.infrastructure.JdbcProjectRepository;
 import com.taskflow.task.api.*;
 import com.taskflow.task.domain.Task;
@@ -19,15 +23,19 @@ public class TaskService {
 
     private final JdbcTaskRepository taskRepository;
     private final JdbcProjectRepository projectRepository;
+    private final JdbcMemberRepository memberRepository;
 
     public TaskService(JdbcTaskRepository taskRepository,
-                       JdbcProjectRepository projectRepository) {
+                       JdbcProjectRepository projectRepository,
+                       JdbcMemberRepository memberRepository) {
         this.taskRepository = taskRepository;
         this.projectRepository = projectRepository;
+        this.memberRepository = memberRepository;
     }
 
-    public TaskResponse createTask(long projectId, CreateTaskRequest req) {
+    public TaskResponse createTask(long projectId, CreateTaskRequest req, long callerId) {
         requireProjectExists(projectId);
+        requireWriteAccess(projectId, callerId);
         TaskPriority priority = req.priority() != null ? req.priority() : TaskPriority.MEDIUM;
         LocalDate dueDate = parseDate(req.dueDate());
         Task saved = taskRepository.save(projectId, req.title().strip(),
@@ -39,8 +47,10 @@ public class TaskService {
                                                 String statusParam,
                                                 String priorityParam,
                                                 Long assigneeId,
-                                                int page, int size) {
+                                                int page, int size,
+                                                long callerId) {
         requireProjectExists(projectId);
+        requireMember(projectId, callerId);
         TaskStatus statusFilter = parseStatus(statusParam);
         TaskPriority priorityFilter = parsePriority(priorityParam);
         long total = taskRepository.countByProjectId(
@@ -52,15 +62,17 @@ public class TaskService {
         return PageResponse.of(content, page, size, total);
     }
 
-    public TaskResponse getTask(long taskId) {
-        return taskRepository.findById(taskId)
-                .map(this::toResponse)
+    public TaskResponse getTask(long taskId, long callerId) {
+        Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
+        requireMember(task.projectId(), callerId);
+        return toResponse(task);
     }
 
-    public TaskResponse updateTask(long taskId, UpdateTaskRequest req) {
+    public TaskResponse updateTask(long taskId, UpdateTaskRequest req, long callerId) {
         Task existing = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
+        requireWriteAccess(existing.projectId(), callerId);
 
         String newTitle = (req.title() != null) ? req.title().strip() : existing.title();
         if (newTitle.isBlank()) throw new IllegalArgumentException("Task title must not be blank");
@@ -99,10 +111,10 @@ public class TaskService {
         return toResponse(updated);
     }
 
-    public TaskResponse updateStatus(long taskId, UpdateTaskStatusRequest req) {
+    public TaskResponse updateStatus(long taskId, UpdateTaskStatusRequest req, long callerId) {
         Task existing = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
-        // domain rule: enforce valid transition
+        requireWriteAccess(existing.projectId(), callerId);
         existing.transitionTo(req.status());
         Task updated = taskRepository.updateStatus(taskId, req.status())
                 .orElseThrow(() -> new ResourceNotFoundException("Task " + taskId + " not found"));
@@ -114,6 +126,19 @@ public class TaskService {
     private void requireProjectExists(long projectId) {
         projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project " + projectId + " not found"));
+    }
+
+    private void requireMember(long projectId, long callerId) {
+        memberRepository.findByProjectAndUser(projectId, callerId)
+                .orElseThrow(ForbiddenException::new);
+    }
+
+    private void requireWriteAccess(long projectId, long callerId) {
+        ProjectMember m = memberRepository.findByProjectAndUser(projectId, callerId)
+                .orElseThrow(ForbiddenException::new);
+        if (m.role() == MemberRole.VIEWER) {
+            throw new ForbiddenException();
+        }
     }
 
     private static LocalDate parseDate(String value) {

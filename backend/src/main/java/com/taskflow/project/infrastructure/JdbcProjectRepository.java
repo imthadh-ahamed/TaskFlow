@@ -46,6 +46,25 @@ public class JdbcProjectRepository {
         return jdbc.query(sql, rowMapper(), limit, offset);
     }
 
+    public List<Project> findByMemberId(long userId, int limit, int offset) {
+        String sql = """
+                SELECT p.id, p.owner_id, p.name, p.description, p.created_at, p.updated_at
+                FROM projects p
+                JOIN project_members pm ON pm.project_id = p.id
+                WHERE pm.user_id = ?
+                ORDER BY p.created_at DESC
+                LIMIT ? OFFSET ?
+                """;
+        return jdbc.query(sql, rowMapper(), userId, limit, offset);
+    }
+
+    public long countByMemberId(long userId) {
+        Long n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM projects p JOIN project_members pm ON pm.project_id = p.id WHERE pm.user_id = ?",
+                Long.class, userId);
+        return n != null ? n : 0L;
+    }
+
     public long count() {
         Long n = jdbc.queryForObject("SELECT COUNT(*) FROM projects", Long.class);
         return n != null ? n : 0L;

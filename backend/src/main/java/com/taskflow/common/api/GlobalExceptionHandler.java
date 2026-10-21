@@ -4,6 +4,7 @@ import com.taskflow.auth.application.DuplicateEmailException;
 import com.taskflow.auth.application.InvalidCredentialsException;
 import com.taskflow.auth.application.SessionRevokedException;
 import com.taskflow.auth.application.TokenValidationException;
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -98,6 +99,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(401).body(new ErrorResponse(
                 401, "Unauthorized", "INVALID_TOKEN",
                 "Authentication required", List.of(), now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    ResponseEntity<ErrorResponse> handleForbidden(
+            ForbiddenException ex, HttpServletRequest req) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(
+                403, "Forbidden", "FORBIDDEN",
+                "You do not have permission to access this resource",
+                List.of(), now(), req.getRequestURI()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

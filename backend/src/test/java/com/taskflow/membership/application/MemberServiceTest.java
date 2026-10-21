@@ -29,8 +29,10 @@ class MemberServiceTest {
     @Mock JdbcProjectRepository projectRepository;
     @InjectMocks MemberService service;
 
+    private static final long OWNER_ID = 10L;
+
     private Project sampleProject() {
-        return new Project(1L, 10L, "P", null, Instant.EPOCH, Instant.EPOCH);
+        return new Project(1L, OWNER_ID, "P", null, Instant.EPOCH, Instant.EPOCH);
     }
 
     private ProjectMember member(long userId, MemberRole role) {
@@ -42,9 +44,10 @@ class MemberServiceTest {
     @Test
     void addMember_succeeds_for_valid_role() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.add(1L, 5L, MemberRole.MEMBER)).thenReturn(member(5L, MemberRole.MEMBER));
 
-        MemberResponse resp = service.addMember(1L, new AddMemberRequest(5L, MemberRole.MEMBER));
+        MemberResponse resp = service.addMember(1L, new AddMemberRequest(5L, MemberRole.MEMBER), OWNER_ID);
 
         assertThat(resp.userId()).isEqualTo(5L);
         assertThat(resp.role()).isEqualTo("member");
@@ -55,15 +58,16 @@ class MemberServiceTest {
         when(projectRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
-                .isThrownBy(() -> service.addMember(99L, new AddMemberRequest(5L, MemberRole.MEMBER)));
+                .isThrownBy(() -> service.addMember(99L, new AddMemberRequest(5L, MemberRole.MEMBER), OWNER_ID));
     }
 
     @Test
     void addMember_rejects_owner_role() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> service.addMember(1L, new AddMemberRequest(5L, MemberRole.OWNER)))
+                .isThrownBy(() -> service.addMember(1L, new AddMemberRequest(5L, MemberRole.OWNER), OWNER_ID))
                 .withMessageContaining("OWNER");
     }
 
@@ -72,10 +76,11 @@ class MemberServiceTest {
     @Test
     void listMembers_returns_all_members() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectId(1L)).thenReturn(
-                List.of(member(10L, MemberRole.OWNER), member(5L, MemberRole.MEMBER)));
+                List.of(member(OWNER_ID, MemberRole.OWNER), member(5L, MemberRole.MEMBER)));
 
-        List<MemberResponse> list = service.listMembers(1L);
+        List<MemberResponse> list = service.listMembers(1L, OWNER_ID);
 
         assertThat(list).hasSize(2);
         assertThat(list.get(0).role()).isEqualTo("owner");
@@ -86,12 +91,13 @@ class MemberServiceTest {
     @Test
     void updateRole_changes_member_to_viewer() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectAndUser(1L, 5L))
                 .thenReturn(Optional.of(member(5L, MemberRole.MEMBER)));
         when(memberRepository.updateRole(1L, 5L, MemberRole.VIEWER))
                 .thenReturn(Optional.of(member(5L, MemberRole.VIEWER)));
 
-        MemberResponse resp = service.updateRole(1L, 5L, new UpdateMemberRoleRequest(MemberRole.VIEWER));
+        MemberResponse resp = service.updateRole(1L, 5L, new UpdateMemberRoleRequest(MemberRole.VIEWER), OWNER_ID);
 
         assertThat(resp.role()).isEqualTo("viewer");
     }
@@ -99,35 +105,36 @@ class MemberServiceTest {
     @Test
     void updateRole_rejects_changing_owner_role() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
-        when(memberRepository.findByProjectAndUser(1L, 10L))
-                .thenReturn(Optional.of(member(10L, MemberRole.OWNER)));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> service.updateRole(1L, 10L,
-                        new UpdateMemberRoleRequest(MemberRole.MEMBER)))
+                .isThrownBy(() -> service.updateRole(1L, OWNER_ID,
+                        new UpdateMemberRoleRequest(MemberRole.MEMBER), OWNER_ID))
                 .withMessageContaining("owner");
     }
 
     @Test
     void updateRole_rejects_assigning_owner_role() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectAndUser(1L, 5L))
                 .thenReturn(Optional.of(member(5L, MemberRole.MEMBER)));
 
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> service.updateRole(1L, 5L,
-                        new UpdateMemberRoleRequest(MemberRole.OWNER)))
+                        new UpdateMemberRoleRequest(MemberRole.OWNER), OWNER_ID))
                 .withMessageContaining("OWNER");
     }
 
     @Test
     void updateRole_throws_when_member_not_found() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectAndUser(1L, 99L)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.updateRole(1L, 99L,
-                        new UpdateMemberRoleRequest(MemberRole.VIEWER)));
+                        new UpdateMemberRoleRequest(MemberRole.VIEWER), OWNER_ID));
     }
 
     // --- removeMember ---
@@ -135,31 +142,32 @@ class MemberServiceTest {
     @Test
     void removeMember_deletes_non_owner() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectAndUser(1L, 5L))
                 .thenReturn(Optional.of(member(5L, MemberRole.MEMBER)));
         when(memberRepository.remove(1L, 5L)).thenReturn(true);
 
-        assertThatCode(() -> service.removeMember(1L, 5L)).doesNotThrowAnyException();
+        assertThatCode(() -> service.removeMember(1L, 5L, OWNER_ID)).doesNotThrowAnyException();
         verify(memberRepository).remove(1L, 5L);
     }
 
     @Test
     void removeMember_rejects_removing_owner() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
-        when(memberRepository.findByProjectAndUser(1L, 10L))
-                .thenReturn(Optional.of(member(10L, MemberRole.OWNER)));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
 
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> service.removeMember(1L, 10L))
+                .isThrownBy(() -> service.removeMember(1L, OWNER_ID, OWNER_ID))
                 .withMessageContaining("owner");
     }
 
     @Test
     void removeMember_throws_when_member_not_found() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(sampleProject()));
+        when(memberRepository.findByProjectAndUser(1L, OWNER_ID)).thenReturn(Optional.of(member(OWNER_ID, MemberRole.OWNER)));
         when(memberRepository.findByProjectAndUser(1L, 99L)).thenReturn(Optional.empty());
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
-                .isThrownBy(() -> service.removeMember(1L, 99L));
+                .isThrownBy(() -> service.removeMember(1L, 99L, OWNER_ID));
     }
 }

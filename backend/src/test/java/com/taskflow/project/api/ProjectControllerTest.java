@@ -1,9 +1,10 @@
 package com.taskflow.project.api;
 
 import com.taskflow.auth.application.JwtService;
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
-import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.PageResponse;
+import com.taskflow.common.security.WithAuthenticatedUser;
 import com.taskflow.project.application.ProjectService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WithMockUser
+@WithAuthenticatedUser
 @WebMvcTest(ProjectController.class)
 class ProjectControllerTest {
 
@@ -41,12 +42,12 @@ class ProjectControllerTest {
 
     @Test
     void create_returns_201_with_location() throws Exception {
-        when(service.createProject(any())).thenReturn(sample(42L));
+        when(service.createProject(any(), eq(1L))).thenReturn(sample(42L));
 
         mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"Alpha","description":"desc","ownerId":1}
+                                {"name":"Alpha","description":"desc"}
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", org.hamcrest.Matchers.endsWith("/api/v1/projects/42")))
@@ -59,22 +60,11 @@ class ProjectControllerTest {
         mockMvc.perform(post("/api/v1/projects")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name":"  ","ownerId":1}
+                                {"name":"  "}
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.details[0].field").value("name"));
-    }
-
-    @Test
-    void create_returns_400_when_ownerId_is_missing() throws Exception {
-        mockMvc.perform(post("/api/v1/projects")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Alpha"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     // --- GET /api/v1/projects ---
@@ -82,7 +72,7 @@ class ProjectControllerTest {
     @Test
     void list_returns_200_with_page() throws Exception {
         var page = PageResponse.of(List.of(sample(1L), sample(2L)), 0, 20, 2L);
-        when(service.listProjects(0, 20)).thenReturn(page);
+        when(service.listProjects(0, 20, 1L)).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/projects"))
                 .andExpect(status().isOk())
@@ -103,7 +93,7 @@ class ProjectControllerTest {
 
     @Test
     void getOne_returns_200() throws Exception {
-        when(service.getProject(1L)).thenReturn(sample(1L));
+        when(service.getProject(1L, 1L)).thenReturn(sample(1L));
 
         mockMvc.perform(get("/api/v1/projects/1"))
                 .andExpect(status().isOk())
@@ -112,7 +102,7 @@ class ProjectControllerTest {
 
     @Test
     void getOne_returns_404_when_not_found() throws Exception {
-        when(service.getProject(99L))
+        when(service.getProject(99L, 1L))
                 .thenThrow(new ResourceNotFoundException("Project 99 not found"));
 
         mockMvc.perform(get("/api/v1/projects/99"))
@@ -121,11 +111,20 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.message").value("Project 99 not found"));
     }
 
+    @Test
+    void getOne_returns_403_when_not_a_member() throws Exception {
+        when(service.getProject(2L, 1L)).thenThrow(new ForbiddenException());
+
+        mockMvc.perform(get("/api/v1/projects/2"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
     // --- PATCH /api/v1/projects/{id} ---
 
     @Test
     void update_returns_200() throws Exception {
-        when(service.updateProject(eq(1L), any())).thenReturn(sample(1L));
+        when(service.updateProject(eq(1L), any(), eq(1L))).thenReturn(sample(1L));
 
         mockMvc.perform(patch("/api/v1/projects/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -138,7 +137,7 @@ class ProjectControllerTest {
 
     @Test
     void update_returns_404_when_not_found() throws Exception {
-        when(service.updateProject(eq(99L), any()))
+        when(service.updateProject(eq(99L), any(), eq(1L)))
                 .thenThrow(new ResourceNotFoundException("Project 99 not found"));
 
         mockMvc.perform(patch("/api/v1/projects/99")
@@ -153,7 +152,7 @@ class ProjectControllerTest {
 
     @Test
     void delete_returns_204() throws Exception {
-        doNothing().when(service).deleteProject(1L);
+        doNothing().when(service).deleteProject(1L, 1L);
 
         mockMvc.perform(delete("/api/v1/projects/1"))
                 .andExpect(status().isNoContent());
@@ -162,9 +161,18 @@ class ProjectControllerTest {
     @Test
     void delete_returns_404_when_not_found() throws Exception {
         doThrow(new ResourceNotFoundException("Project 99 not found"))
-                .when(service).deleteProject(99L);
+                .when(service).deleteProject(99L, 1L);
 
         mockMvc.perform(delete("/api/v1/projects/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void delete_returns_403_when_not_owner() throws Exception {
+        doThrow(new ForbiddenException()).when(service).deleteProject(2L, 1L);
+
+        mockMvc.perform(delete("/api/v1/projects/2"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 }

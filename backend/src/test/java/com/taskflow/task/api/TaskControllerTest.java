@@ -1,10 +1,11 @@
 package com.taskflow.task.api;
 
 import com.taskflow.auth.application.JwtService;
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
-import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.GlobalExceptionHandler;
 import com.taskflow.common.api.PageResponse;
+import com.taskflow.common.security.WithAuthenticatedUser;
 import com.taskflow.task.application.TaskService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WithMockUser
+@WithAuthenticatedUser
 @WebMvcTest({ TaskController.class, GlobalExceptionHandler.class })
 class TaskControllerTest {
 
@@ -41,7 +42,7 @@ class TaskControllerTest {
 
         @Test
         void create_returns_201_with_location() throws Exception {
-                when(service.createTask(eq(1L), any())).thenReturn(sampleResponse(10L, "todo"));
+                when(service.createTask(eq(1L), any(), eq(1L))).thenReturn(sampleResponse(10L, "todo"));
 
                 mvc.perform(post("/api/v1/projects/1/tasks")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -79,7 +80,7 @@ class TaskControllerTest {
 
         @Test
         void create_returns_404_when_project_not_found() throws Exception {
-                when(service.createTask(eq(99L), any()))
+                when(service.createTask(eq(99L), any(), eq(1L)))
                                 .thenThrow(new ResourceNotFoundException("Project 99 not found"));
 
                 mvc.perform(post("/api/v1/projects/99/tasks")
@@ -91,13 +92,26 @@ class TaskControllerTest {
                                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         }
 
+        @Test
+        void create_returns_403_when_viewer_tries_to_create() throws Exception {
+                when(service.createTask(eq(1L), any(), eq(1L))).thenThrow(new ForbiddenException());
+
+                mvc.perform(post("/api/v1/projects/1/tasks")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {"title":"Fix bug"}
+                                                """))
+                                .andExpect(status().isForbidden())
+                                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        }
+
         // --- GET /api/v1/projects/{projectId}/tasks ---
 
         @Test
         void list_returns_paged_results() throws Exception {
                 PageResponse<TaskResponse> page = PageResponse.of(
                                 List.of(sampleResponse(1L, "todo")), 0, 20, 1L);
-                when(service.listTasks(eq(1L), isNull(), isNull(), isNull(), eq(0), eq(20)))
+                when(service.listTasks(eq(1L), isNull(), isNull(), isNull(), eq(0), eq(20), eq(1L)))
                                 .thenReturn(page);
 
                 mvc.perform(get("/api/v1/projects/1/tasks"))
@@ -117,7 +131,7 @@ class TaskControllerTest {
 
         @Test
         void getOne_returns_200() throws Exception {
-                when(service.getTask(1L)).thenReturn(sampleResponse(1L, "todo"));
+                when(service.getTask(1L, 1L)).thenReturn(sampleResponse(1L, "todo"));
 
                 mvc.perform(get("/api/v1/tasks/1"))
                                 .andExpect(status().isOk())
@@ -126,7 +140,7 @@ class TaskControllerTest {
 
         @Test
         void getOne_returns_404_when_not_found() throws Exception {
-                when(service.getTask(99L)).thenThrow(new ResourceNotFoundException("Task 99 not found"));
+                when(service.getTask(99L, 1L)).thenThrow(new ResourceNotFoundException("Task 99 not found"));
 
                 mvc.perform(get("/api/v1/tasks/99"))
                                 .andExpect(status().isNotFound())
@@ -138,7 +152,7 @@ class TaskControllerTest {
 
         @Test
         void update_returns_200() throws Exception {
-                when(service.updateTask(eq(1L), any())).thenReturn(sampleResponse(1L, "todo"));
+                when(service.updateTask(eq(1L), any(), eq(1L))).thenReturn(sampleResponse(1L, "todo"));
 
                 mvc.perform(patch("/api/v1/tasks/1")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -163,7 +177,7 @@ class TaskControllerTest {
 
         @Test
         void updateStatus_returns_200_on_valid_transition() throws Exception {
-                when(service.updateStatus(eq(1L), any())).thenReturn(sampleResponse(1L, "in_progress"));
+                when(service.updateStatus(eq(1L), any(), eq(1L))).thenReturn(sampleResponse(1L, "in_progress"));
 
                 mvc.perform(patch("/api/v1/tasks/1/status")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -187,7 +201,7 @@ class TaskControllerTest {
 
         @Test
         void updateStatus_returns_400_on_invalid_transition() throws Exception {
-                when(service.updateStatus(eq(1L), any()))
+                when(service.updateStatus(eq(1L), any(), eq(1L)))
                                 .thenThrow(new IllegalStateException("Cannot transition task from TODO to DONE"));
 
                 mvc.perform(patch("/api/v1/tasks/1/status")

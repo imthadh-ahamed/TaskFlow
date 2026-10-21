@@ -1,6 +1,10 @@
 package com.taskflow.project.application;
 
+import com.taskflow.common.ForbiddenException;
 import com.taskflow.common.ResourceNotFoundException;
+import com.taskflow.membership.domain.MemberRole;
+import com.taskflow.membership.domain.ProjectMember;
+import com.taskflow.membership.infrastructure.JdbcMemberRepository;
 import com.taskflow.project.api.CreateProjectRequest;
 import com.taskflow.project.api.ProjectResponse;
 import com.taskflow.project.api.UpdateProjectRequest;
@@ -15,35 +19,40 @@ import java.util.List;
 public class ProjectService {
 
     private final JdbcProjectRepository repository;
+    private final JdbcMemberRepository memberRepository;
 
-    public ProjectService(JdbcProjectRepository repository) {
+    public ProjectService(JdbcProjectRepository repository, JdbcMemberRepository memberRepository) {
         this.repository = repository;
+        this.memberRepository = memberRepository;
     }
 
-    public ProjectResponse createProject(CreateProjectRequest req) {
-        Project saved = repository.save(req.ownerId(), req.name().strip(), req.description());
+    public ProjectResponse createProject(CreateProjectRequest req, long callerId) {
+        Project saved = repository.save(callerId, req.name().strip(), req.description());
+        memberRepository.add(saved.id(), callerId, MemberRole.OWNER);
         return toResponse(saved);
     }
 
-    public PageResponse<ProjectResponse> listProjects(int page, int size) {
-        long total = repository.count();
+    public PageResponse<ProjectResponse> listProjects(int page, int size, long callerId) {
+        long total = repository.countByMemberId(callerId);
         List<ProjectResponse> content = repository
-                .findAll(size, page * size)
+                .findByMemberId(callerId, size, page * size)
                 .stream()
                 .map(this::toResponse)
                 .toList();
         return PageResponse.of(content, page, size, total);
     }
 
-    public ProjectResponse getProject(long id) {
-        return repository.findById(id)
-                .map(this::toResponse)
+    public ProjectResponse getProject(long id, long callerId) {
+        Project project = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project " + id + " not found"));
+        requireMember(id, callerId);
+        return toResponse(project);
     }
 
-    public ProjectResponse updateProject(long id, UpdateProjectRequest req) {
+    public ProjectResponse updateProject(long id, UpdateProjectRequest req, long callerId) {
         Project existing = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project " + id + " not found"));
+        requireOwner(id, callerId);
 
         String newName = (req.name() != null) ? req.name().strip() : existing.name();
         if (newName.isBlank()) {
@@ -66,9 +75,24 @@ public class ProjectService {
         return toResponse(updated);
     }
 
-    public void deleteProject(long id) {
-        if (!repository.deleteById(id)) {
+    public void deleteProject(long id, long callerId) {
+        if (!repository.findById(id).isPresent()) {
             throw new ResourceNotFoundException("Project " + id + " not found");
+        }
+        requireOwner(id, callerId);
+        repository.deleteById(id);
+    }
+
+    private void requireMember(long projectId, long callerId) {
+        memberRepository.findByProjectAndUser(projectId, callerId)
+                .orElseThrow(ForbiddenException::new);
+    }
+
+    private void requireOwner(long projectId, long callerId) {
+        ProjectMember m = memberRepository.findByProjectAndUser(projectId, callerId)
+                .orElseThrow(ForbiddenException::new);
+        if (m.role() != MemberRole.OWNER) {
+            throw new ForbiddenException();
         }
     }
 
