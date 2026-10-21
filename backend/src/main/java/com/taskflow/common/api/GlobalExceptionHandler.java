@@ -1,5 +1,8 @@
 package com.taskflow.common.api;
 
+import com.taskflow.auth.application.DuplicateEmailException;
+import com.taskflow.auth.application.InvalidCredentialsException;
+import com.taskflow.auth.application.TokenValidationException;
 import com.taskflow.common.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -61,6 +64,31 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(new ErrorResponse(
                 400, "Bad Request", "INVALID_REQUEST",
                 ex.getMessage(), List.of(), now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    ResponseEntity<ErrorResponse> handleDuplicateEmail(
+            DuplicateEmailException ex, HttpServletRequest req) {
+        return ResponseEntity.status(409).body(new ErrorResponse(
+                409, "Conflict", "EMAIL_ALREADY_EXISTS",
+                ex.getMessage(), List.of(), now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    ResponseEntity<ErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException ex, HttpServletRequest req) {
+        // Always return a generic message — do not reveal whether the email or password was wrong.
+        return ResponseEntity.status(401).body(new ErrorResponse(
+                401, "Unauthorized", "INVALID_CREDENTIALS",
+                "Invalid credentials", List.of(), now(), req.getRequestURI()));
+    }
+
+    @ExceptionHandler(TokenValidationException.class)
+    ResponseEntity<ErrorResponse> handleTokenValidation(
+            TokenValidationException ex, HttpServletRequest req) {
+        return ResponseEntity.status(401).body(new ErrorResponse(
+                401, "Unauthorized", "INVALID_TOKEN",
+                "Authentication required", List.of(), now(), req.getRequestURI()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

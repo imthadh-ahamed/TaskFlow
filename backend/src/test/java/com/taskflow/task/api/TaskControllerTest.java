@@ -1,6 +1,8 @@
 package com.taskflow.task.api;
 
+import com.taskflow.auth.application.JwtService;
 import com.taskflow.common.ResourceNotFoundException;
+import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.GlobalExceptionHandler;
 import com.taskflow.common.api.PageResponse;
 import com.taskflow.task.application.TaskService;
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@WithMockUser
 @WebMvcTest({ TaskController.class, GlobalExceptionHandler.class })
 class TaskControllerTest {
 
@@ -25,6 +28,8 @@ class TaskControllerTest {
         MockMvc mvc;
         @MockitoBean
         TaskService service;
+        @MockitoBean
+        JwtService jwtService;
 
         private TaskResponse sampleResponse(long id, String status) {
                 return new TaskResponse(id, 1L, null, "Fix bug", null,

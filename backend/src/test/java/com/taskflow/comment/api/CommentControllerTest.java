@@ -1,6 +1,8 @@
 package com.taskflow.comment.api;
 
+import com.taskflow.auth.application.JwtService;
 import com.taskflow.comment.application.CommentService;
+import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.ResourceNotFoundException;
 import com.taskflow.common.api.GlobalExceptionHandler;
 import com.taskflow.common.api.PageResponse;
@@ -18,11 +20,13 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@WithMockUser
 @WebMvcTest({CommentController.class, GlobalExceptionHandler.class})
 class CommentControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean CommentService service;
+    @MockitoBean JwtService jwtService;
 
     private CommentResponse sampleComment(long id) {
         return new CommentResponse(id, 1L, 42L, "Looks good",

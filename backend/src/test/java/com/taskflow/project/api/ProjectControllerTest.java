@@ -1,6 +1,8 @@
 package com.taskflow.project.api;
 
+import com.taskflow.auth.application.JwtService;
 import com.taskflow.common.ResourceNotFoundException;
+import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.PageResponse;
 import com.taskflow.project.application.ProjectService;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@WithMockUser
 @WebMvcTest(ProjectController.class)
 class ProjectControllerTest {
 
@@ -26,6 +29,8 @@ class ProjectControllerTest {
 
     @MockitoBean
     ProjectService service;
+    @MockitoBean
+    JwtService jwtService;
 
     private ProjectResponse sample(long id) {
         return new ProjectResponse(id, 1L, "Alpha", "desc",

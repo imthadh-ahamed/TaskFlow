@@ -1,6 +1,8 @@
 package com.taskflow.membership.api;
 
+import com.taskflow.auth.application.JwtService;
 import com.taskflow.common.ResourceNotFoundException;
+import org.springframework.security.test.context.support.WithMockUser;
 import com.taskflow.common.api.GlobalExceptionHandler;
 import com.taskflow.membership.application.MemberService;
 import org.junit.jupiter.api.Test;
@@ -17,11 +19,13 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@WithMockUser
 @WebMvcTest({MemberController.class, GlobalExceptionHandler.class})
 class MemberControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean MemberService service;
+    @MockitoBean JwtService jwtService;
 
     private MemberResponse sampleMember(long userId, String role) {
         return new MemberResponse(1L, userId, role, "2024-01-01T00:00:00Z");
