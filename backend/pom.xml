@@ -150,7 +150,18 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- Kafka producer/consumer for async notification event delivery (T13.4) -->
+		<!--
+			Kafka producer/consumer for async notification event delivery (T13.4).
+			Spring Boot 4.x extracted KafkaAutoConfiguration into spring-boot-kafka.
+			spring-boot-starter-kafka brings in: spring-boot-kafka (auto-config) +
+			spring-kafka. The bare spring-kafka dependency provides the library but
+			no auto-configuration, so KafkaTemplate would never be created without
+			the starter.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-kafka</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>

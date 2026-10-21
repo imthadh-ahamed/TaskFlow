@@ -10,15 +10,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Polls the outbox_events table and forwards undelivered rows to Kafka.
  *
- * KafkaTemplate is optional so the relay bean can be created even when
- * KafkaAutoConfiguration is not active (e.g. integration tests with no
- * running broker). When Kafka is absent the relay logs a warning and skips;
- * outbox rows stay undelivered and will be retried on the next poll.
+ * KafkaTemplate is injected with required=false so the relay bean can be
+ * created even when no Kafka broker is available. When kafkaTemplate is null
+ * the relay skips and outbox rows accumulate until Kafka becomes reachable.
  *
  * Retry behaviour: rows with attempts >= 5 are skipped (dead-lettered in-place).
  */
@@ -30,26 +28,29 @@ public class OutboxRelayService {
     private static final int BATCH_SIZE = 50;
 
     private final JdbcOutboxRepository outboxRepository;
-    @SuppressWarnings("rawtypes")
-    private final Optional<KafkaTemplate> kafkaTemplate;
 
-    @Autowired
     @SuppressWarnings("rawtypes")
-    public OutboxRelayService(JdbcOutboxRepository outboxRepository,
-                               Optional<KafkaTemplate> kafkaTemplate) {
+    private KafkaTemplate kafkaTemplate;
+
+    public OutboxRelayService(JdbcOutboxRepository outboxRepository) {
         this.outboxRepository = outboxRepository;
+    }
+
+    @Autowired(required = false)
+    @SuppressWarnings("rawtypes")
+    void setKafkaTemplate(KafkaTemplate kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 
     @Scheduled(fixedDelayString = "${taskflow.outbox.relay-interval-ms:5000}")
     @SuppressWarnings("unchecked")
     public void relay() {
-        if (kafkaTemplate.isEmpty()) {
+        if (kafkaTemplate == null) {
             log.debug("outbox: Kafka unavailable, skipping relay");
             return;
         }
         List<OutboxEntry> pending = outboxRepository.findUndelivered(BATCH_SIZE);
-        KafkaTemplate template = kafkaTemplate.get();
+        KafkaTemplate<String, String> template = kafkaTemplate;
         for (OutboxEntry entry : pending) {
             try {
                 template.send(TOPIC, entry.eventId().toString(), entry.payload()).get();
